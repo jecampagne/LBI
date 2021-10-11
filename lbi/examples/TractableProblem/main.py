@@ -2,6 +2,7 @@ import jax
 import jax.numpy as np
 import numpy as onp
 import optax
+from trax.jaxboard import SummaryWriter
 from lbi.prior import SmoothedBoxPrior
 from lbi.dataset import getDataLoaderBuilder
 from lbi.diagnostics import MMD, ROC_AUC, LR_ROC_AUC
@@ -47,7 +48,6 @@ num_chains = 1
 
 # --------------------------
 # Create logger
-from trax.jaxboard import SummaryWriter
 
 experiment_name = datetime.datetime.now().strftime("%s")
 experiment_name = f"{model_type}_{experiment_name}"
@@ -171,7 +171,7 @@ def potential_fn(theta):
     return log_post.sum()
 
 
-num_chains = 128
+num_chains = 2
 init_theta = sample_prior(rng, num_samples=num_chains)
 
 mcmc = hmc(

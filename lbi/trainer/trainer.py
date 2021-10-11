@@ -55,7 +55,7 @@ def getTrainer(
                     valid_metrics = valid_step(params, batch)
                     if valid_metrics['valid_loss'] < best_valid_loss:
                         best_valid_loss = valid_metrics['valid_loss']
-                        best_params = params
+                        best_params = params  # TODO: copy just to be safe
                     elif np.isnan(valid_metrics['valid_loss']) or np.isinf(valid_metrics['valid_loss']):
                         print("We've hit nan-ville. Stopping early.")
                         break

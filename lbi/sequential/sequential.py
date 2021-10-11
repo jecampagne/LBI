@@ -50,6 +50,7 @@ def _sample_posterior(
     init_theta=None,
     num_samples=1000,
     num_chains=32,
+    num_warmup=None,
 ):
     def potential_fn(theta):
         if len(theta.shape) == 1:
@@ -59,6 +60,9 @@ def _sample_posterior(
             theta
         )
         return log_post.sum()
+
+    if num_warmup is None:
+        num_warmup = num_samples
 
     mcmc = hmc(
         rng,
@@ -101,12 +105,15 @@ def _sequential_round(
     num_samples_per_round=100,
     num_samples_per_theta=1,
     num_chains=32,
+    num_warmup_per_round=None,
     Theta_Old=None,
     Theta_New=None,
     X=None,
     num_round=0,
 ):
     # TODO: These if statements are a bit of a mess. Should be refactored.
+    if num_warmup_per_round is None:
+        num_warmup_per_round = num_samples_per_round
     if Theta_New is not None:
         X_New = _simulate_X(rng, simulate, Theta_New, num_samples_per_theta)
         
@@ -143,6 +150,7 @@ def _sequential_round(
         X_true,
         init_theta=init_theta,
         num_samples=num_samples_per_round,
+        num_warmup=num_samples_per_round,
         num_chains=num_chains,
     )
     return model_params, X, Theta, Theta_post
@@ -165,12 +173,14 @@ def sequential(
     num_samples_per_round=100,
     num_samples_per_theta=1,
     num_chains=32,
+    num_warmup_per_round=None,
     Theta=None,
     X=None,
     normalize=None,
     logger=None,
 ):
-
+    if num_warmup_per_round is None:
+        num_warmup_per_round = num_samples_per_round
     if get_init_theta is None:
         # get_init_theta = _get_init_theta
         get_init_theta = lambda mp, lp, xt, th, num_theta=num_chains: sample_prior(
