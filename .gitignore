@@ -127,3 +127,4 @@ venv.bak/
 *.png
 runs/
 .vscode/settings.json
+.DS_Store
