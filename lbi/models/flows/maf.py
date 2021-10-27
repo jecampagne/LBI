@@ -44,12 +44,18 @@ def masked_transform(rng, input_dim, context_dim=0, hidden_dim=64, num_hidden=1)
     return params, apply_fun
 
 
-def MaskedAffineFlow(n_layers=5):
+def MaskedAffineFlow(n_layers=5, context_embedding_kwargs=None):
     """
     A sequence of affine transformations with a masked affine transform.
 
     returns init_fun
     """
+    if context_embedding_kwargs is None:
+        context_embedding_kwargs = {
+            "use_context_embedding": False,
+            "embedding_dim": None,
+        }
+        
     return flows.Flow(
         transformation=flows.Serial(
             *(
@@ -60,6 +66,7 @@ def MaskedAffineFlow(n_layers=5):
             * n_layers
         ),
         prior=flows.Normal(),
+        context_embedding_kwargs=context_embedding_kwargs,
     )
 
 
@@ -85,11 +92,21 @@ if __name__ == "__main__":
         return nll, optax.apply_updates(params, updates), opt_state
 
     hidden_dim = 32
+
     n_layers = 4
+
+    # context embedding hyperparams
+    context_embedding_kwargs = {
+        "use_context_embedding": False,
+        "embedding_dim": 16,
+        "hidden_dim": 128,
+        "num_layers": 2,
+        "act": stax.Relu,
+    }
 
     batch_size = 128
     seed = 1234
-    nsteps = 400
+    nsteps = 40
 
     X, y = make_moons(n_samples=10000, noise=0.05, random_state=seed)
     y = y[:, None]
@@ -103,13 +120,14 @@ if __name__ == "__main__":
     y_train = torch.tensor(y_train, dtype=torch.float32)
 
     train_dataloader = DataLoader(
-        TensorDataset(X_train_s, y_train),
-        batch_size=batch_size,
-        shuffle=True
+        TensorDataset(X_train_s, y_train), batch_size=batch_size, shuffle=True
     )
 
     rng = jax.random.PRNGKey(seed)
-    params, log_pdf, sample = MaskedAffineFlow(n_layers=n_layers)(
+    params, log_pdf, sample = MaskedAffineFlow(
+        n_layers=n_layers,
+        context_embedding_kwargs=context_embedding_kwargs,
+    )(
         rng,
         input_dim=input_dim,
         context_dim=context_dim,
