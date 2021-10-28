@@ -11,6 +11,7 @@ def InitializeFlow(
     flow_model=None,
     num_layers=5,
     hidden_dim=64,
+    context_embedding_kwargs=None,
     **kwargs,
 ):
     """
@@ -37,7 +38,13 @@ def InitializeFlow(
     if type(model_rng) is int:
         model_rng = jax.random.PRNGKey(model_rng)
 
-    init_fun = flow_model(num_layers)
+    if context_embedding_kwargs is None:
+        context_embedding_kwargs = {
+            "use_context_embedding": False,
+            "embedding_dim": None,
+        }
+
+    init_fun = flow_model(num_layers, context_embedding_kwargs=context_embedding_kwargs)
     initial_params, log_pdf, sample = init_fun(
         model_rng,
         input_dim=obs_dim,

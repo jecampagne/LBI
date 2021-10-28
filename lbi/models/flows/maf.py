@@ -50,11 +50,6 @@ def MaskedAffineFlow(n_layers=5, context_embedding_kwargs=None):
 
     returns init_fun
     """
-    if context_embedding_kwargs is None:
-        context_embedding_kwargs = {
-            "use_context_embedding": False,
-            "embedding_dim": None,
-        }
         
     return flows.Flow(
         transformation=flows.Serial(
