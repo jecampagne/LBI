@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as np
+import numpy as onp
 from ..sampler.hmc import hmc
 
 
@@ -117,6 +118,12 @@ def _sequential_round(
     if Theta_New is not None:
         X_New = _simulate_X(rng, simulate, Theta_New, num_samples_per_theta)
         
+        # Remove nans
+        nan_idx = onp.any(onp.isnan(X_New), axis=1)
+        X_New = X_New[~nan_idx]
+        Theta_New = Theta_New[~nan_idx]
+        
+        
     if Theta_Old is not None:
         Theta = np.vstack([Theta_Old, Theta_New])
     else:
@@ -224,25 +231,23 @@ def sequential(
 
 
         theta_dim = Theta.shape[-1]
-        true_theta = onp.array([0.7, -2.9, -1.0, -0.9, 0.6])
 
-        try:
-            corner.corner(
-                onp.array(Theta_New),
-                range=[(-3, 3) for i in range(theta_dim)],
-                truths=true_theta,
-                bins=75,
-                smooth=(1.0),
-                smooth1d=(1.0),
-            )
+        # try:
+        #     corner.corner(
+        #         onp.array(Theta_New),
+        #         range=[(0, 1) for i in range(theta_dim)],
+        #         bins=75,
+        #         smooth=(1.0),
+        #         smooth1d=(1.0),
+        #     )
             
             
-            if hasattr(logger, "plot"):
-                logger.plot(f"diagnostic_corner", plt, close_plot=True, step=(i+1))
-            else:
-                plt.show()
-        except KeyboardInterrupt:
-            pass
+        #     if hasattr(logger, "plot"):
+        #         logger.plot(f"diagnostic_corner", plt, close_plot=True, step=(i+1))
+        #     else:
+        #         plt.show()
+        # except KeyboardInterrupt:
+        #     pass
         # DEBUGGING
 
     return model_params, Theta_New
