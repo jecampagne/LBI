@@ -9,7 +9,7 @@ from lbi.diagnostics import MMD, ROC_AUC, LR_ROC_AUC
 from lbi.sequential.sequential import sequential
 from lbi.models.base import get_train_step, get_valid_step
 
-# from lbi.models.flows import InitializeFlow
+from lbi.models.flows import InitializeFlow
 from lbi.models.classifier import InitializeClassifier
 from lbi.trainer import getTrainer
 from lbi.sampler import hmc
@@ -118,21 +118,6 @@ else:
         hidden_dim=hidden_dim,
     )
 
-# optimizer = optax.lookahead(
-#     optimizer, sync_period=sync_period, slow_step_size=slow_step_size
-# )
-
-# parallel_lookahead_init = jax.vmap(optax.LookaheadParams.init_synced)
-# parallel_optimizer_init = jax.vmap(optimizer.init)
-
-# ensemble_params = parallel_lookahead_init(ensemble_params)
-# opt_state_vector = parallel_optimizer_init(ensemble_params)
-
-
-# ensemble_params = [optax.LookaheadParams.init_synced(params) for params in ensemble_params]
-# opt_state_vector = [optimizer.init(params) for params in ensemble_params]
-
-# from IPython import embed; embed()
 
 # --------------------------
 # Create trainer
