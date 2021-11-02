@@ -63,14 +63,18 @@ def MaskedAffineFlow(n_layers=5, context_embedding_kwargs=None):
 
     returns init_fun
     """
+    made = flows.MADE(masked_transform)
+    reverse = flows.Reverse()
+    actnorm = flows.ActNorm()
 
     return flows.Flow(
-        transformation=flows.utils.SeriesTransform(
+        transformation=flows.bijections.SeriesTransform(
             (
-                flows.MADE(masked_transform),
-                flows.Reverse(),
-                flows.ActNorm(),
-            )
+                made,
+                reverse,
+                actnorm,
+            ), 
+            
             * n_layers
         ),
         prior=flows.Normal(),

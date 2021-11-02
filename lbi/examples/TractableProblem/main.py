@@ -27,8 +27,8 @@ rng, model_rng, hmc_rng = jax.random.split(jax.random.PRNGKey(seed), num=3)
 
 # Model hyperparameters
 ensemble_size = 5
-num_layers = 6
-hidden_dim = 128
+num_layers = 2
+hidden_dim = 32
 
 # Optimizer hyperparmeters
 max_norm = 1e-3
@@ -108,7 +108,7 @@ if model_type == "classifier":
         hidden_dim=hidden_dim,
     )
 else:
-    ensemble_params, loss, (log_pdf, sample) = InitializeFlow(
+    loss, (log_pdf, sample), ensemble_params, opt_state_ensemble = InitializeFlow(
         model_rng=model_rng,
         optimizer=optimizer,
         obs_dim=obs_dim,
@@ -165,8 +165,8 @@ def potential_fn(theta):
 
     log_L = parallel_log_pdf({"params": ensemble_params}, X_true, theta)
     log_L = log_L.mean(axis=0)
-    
-    log_post = - log_L -log_prior(theta)
+
+    log_post = -log_L - log_prior(theta)
     return log_post.sum()
 
 
@@ -235,5 +235,5 @@ else:
 #     logger.plot(f"ROC", plt, close_plot=True)
 # else:
 #     plt.show()
-# 
+#
 # logger.close()

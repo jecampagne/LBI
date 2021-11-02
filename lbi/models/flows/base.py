@@ -1,7 +1,18 @@
 import jax
+import jax.numpy as np
 import optax
 from functools import partial
 from .maf import MaskedAffineFlow
+
+
+def init_fn(input_shape, rng, flow_fns, optimizer):
+    dummy_input = np.ones((1, *input_shape))
+    params = flow_fns.init(rng, dummy_input)["params"]
+    opt_state = optimizer.init(params)
+    return params, opt_state
+
+
+parallel_init_fn = jax.vmap(init_fn, in_axes=(None, 0, None, None), out_axes=(0, 0))
 
 
 def InitializeFlow(
@@ -47,18 +58,14 @@ def InitializeFlow(
             "embedding_dim": None,
         }
 
-    init_fn = flow_model(num_layers, context_embedding_kwargs=context_embedding_kwargs)
+    # init_fn = flow_model(num_layers, context_embedding_kwargs=context_embedding_kwargs)
+    # parallel_init_fn = jax.vmap(init_fn, in_axes=(0,), out_axes=(0,None, None))
 
-    parallel_init_fn = jax.vmap(init_fn, in_axes=(0, ))
-
-    initial_params_vector, log_pdf_vector, sample_vector = parallel_init_fn(
+    initial_params_vector, opt_state_vector = parallel_init_fn(
         ensemble_seeds,
         input_dim=obs_dim,
         context_dim=theta_dim,
         hidden_dim=hidden_dim,
     )
-    
-    log_pdf = log_pdf_vector[0]
-    sample = sample_vector[0]
-    
-    return initial_params_vector, loss, (log_pdf, sample)
+
+    return loss, (log_pdf, sample), initial_params_vector, opt_state_vector
