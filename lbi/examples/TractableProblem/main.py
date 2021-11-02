@@ -8,7 +8,8 @@ from lbi.dataset import getDataLoaderBuilder
 from lbi.diagnostics import MMD, ROC_AUC, LR_ROC_AUC
 from lbi.sequential.sequential import sequential
 from lbi.models.base import get_train_step, get_valid_step
-from lbi.models.flows import InitializeFlow
+
+# from lbi.models.flows import InitializeFlow
 from lbi.models.classifier import InitializeClassifier
 from lbi.trainer import getTrainer
 from lbi.sampler import hmc
@@ -19,14 +20,15 @@ import matplotlib.pyplot as plt
 import datetime
 
 # --------------------------
-model_type = "flow"  # "classifier" or "flow"
+model_type = "classifier"  # "classifier" or "flow"
 
 seed = 1234
 rng, model_rng, hmc_rng = jax.random.split(jax.random.PRNGKey(seed), num=3)
 
 # Model hyperparameters
-num_layers = 5
-hidden_dim = 512
+ensemble_size = 20
+num_layers = 6
+hidden_dim = 128
 
 # Optimizer hyperparmeters
 max_norm = 1e-3
@@ -37,12 +39,12 @@ slow_step_size = 0.5
 
 # Train hyperparameters
 nsteps = 250000
-patience = 500
+patience = 5
 eval_interval = 100
 
 # Sequential hyperparameters
 num_rounds = 1
-num_initial_samples = 100000
+num_initial_samples = 10000
 num_samples_per_round = 1000
 num_chains = 1
 
@@ -52,7 +54,7 @@ num_chains = 1
 experiment_name = datetime.datetime.now().strftime("%s")
 experiment_name = f"{model_type}_{experiment_name}"
 logger = SummaryWriter("runs/" + experiment_name)
-# logger = None
+logger = None
 
 
 # --------------------------
@@ -80,25 +82,6 @@ log_prior, sample_prior = SmoothedBoxPrior(
 # TODO: Package model, optimizer, trainer initialization into a function
 
 # --------------------------
-# Create model
-if model_type == "classifier":
-    model_params, loss, log_pdf = InitializeClassifier(
-        model_rng=model_rng,
-        obs_dim=obs_dim,
-        theta_dim=theta_dim,
-        num_layers=num_layers,
-        hidden_dim=hidden_dim,
-    )
-else:
-    model_params, loss, (log_pdf, sample) = InitializeFlow(
-        model_rng=model_rng,
-        obs_dim=obs_dim,
-        theta_dim=theta_dim,
-        num_layers=num_layers,
-        hidden_dim=hidden_dim,
-    )
-
-# --------------------------
 # Create optimizer
 optimizer = optax.chain(
     # Set the parameters of Adam optimizer
@@ -111,13 +94,45 @@ optimizer = optax.chain(
     ),
     optax.adaptive_grad_clip(max_norm),
 )
+
+# --------------------------
+# Create model
+if model_type == "classifier":
+    loss, log_pdf, ensemble_params, opt_state_ensemble = InitializeClassifier(
+        model_rng=model_rng,
+        optimizer=optimizer,
+        obs_dim=obs_dim,
+        theta_dim=theta_dim,
+        ensemble_size=ensemble_size,
+        num_layers=num_layers,
+        hidden_dim=hidden_dim,
+    )
+else:
+    ensemble_params, loss, (log_pdf, sample) = InitializeFlow(
+        model_rng=model_rng,
+        optimizer=optimizer,
+        obs_dim=obs_dim,
+        theta_dim=theta_dim,
+        ensemble_size=ensemble_size,
+        num_layers=num_layers,
+        hidden_dim=hidden_dim,
+    )
+
 # optimizer = optax.lookahead(
-#     fast_optimizer, sync_period=sync_period, slow_step_size=slow_step_size
+#     optimizer, sync_period=sync_period, slow_step_size=slow_step_size
 # )
 
-# model_params = optax.LookaheadParams.init_synced(model_params)
-opt_state = optimizer.init(model_params)
+# parallel_lookahead_init = jax.vmap(optax.LookaheadParams.init_synced)
+# parallel_optimizer_init = jax.vmap(optimizer.init)
 
+# ensemble_params = parallel_lookahead_init(ensemble_params)
+# opt_state_vector = parallel_optimizer_init(ensemble_params)
+
+
+# ensemble_params = [optax.LookaheadParams.init_synced(params) for params in ensemble_params]
+# opt_state_vector = [optimizer.init(params) for params in ensemble_params]
+
+# from IPython import embed; embed()
 
 # --------------------------
 # Create trainer
@@ -137,15 +152,15 @@ trainer = getTrainer(
 )
 
 # Train model sequentially
-model_params, Theta_post = sequential(
+ensemble_params, Theta_post = sequential(
     rng,
     X_true,
-    model_params,
+    ensemble_params,
     log_pdf,
     log_prior,
     sample_prior,
     simulate,
-    opt_state,
+    opt_state_ensemble,
     trainer,
     data_loader_builder,
     num_rounds=num_rounds,
@@ -160,14 +175,14 @@ model_params, Theta_post = sequential(
 def potential_fn(theta):
     if len(theta.shape) == 1:
         theta = theta[None, :]
-    log_post = (
-        -log_pdf(
-            model_params.fast if hasattr(model_params, "fast") else model_params,
-            X_true,
-            theta,
-        )
-        - log_prior(theta)
+
+    log_pdf_wrapper = lambda model_params, x, theta: log_pdf(
+        model_params.slow if hasattr(model_params, "slow") else model_params, x, theta
     )
+    parallel_log_pdf = jax.vmap(log_pdf_wrapper, in_axes=(0, None, None))
+    mean_log_pdf = np.mean(parallel_log_pdf(ensemble_params, X_true, theta), axis=-1)
+
+    log_post = -mean_log_pdf - log_prior(theta)
     return log_post.sum()
 
 
@@ -225,13 +240,11 @@ else:
         rng,
         data,
         model_samples,
-)
+    )
 
 # Optimal discriminator
 plt.plot(fpr, tpr, label="ROC curve (area = %0.2f)" % auc)
-plt.plot(
-    np.linspace(0, 1, 10), np.linspace(0, 1, 10), linestyle="--", color="black"
-)
+plt.plot(np.linspace(0, 1, 10), np.linspace(0, 1, 10), linestyle="--", color="black")
 plt.legend(loc="lower right")
 
 if hasattr(logger, "plot"):

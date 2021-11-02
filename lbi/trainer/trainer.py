@@ -1,3 +1,5 @@
+import jax
+from jax.experimental.stax import parallel
 import jax.numpy as np
 from tqdm.auto import tqdm
 
@@ -18,10 +20,13 @@ def getTrainer(
         valid_kwargs = {}
     if patience is None:
         patience = np.inf
-        
+
+    parallel_train_step = jax.vmap(train_step, in_axes=(0, 0, None))
+    parallel_valid_step = jax.vmap(valid_step, in_axes=(0, None))
+
     def trainer(
-        params,
-        opt_state,
+        params_vector,
+        opt_state_vector,
         train_dataloader,
         valid_dataloader=None,
         num_round=0,
@@ -29,34 +34,38 @@ def getTrainer(
 
         iterator = tqdm(range(nsteps))
         best_valid_loss = np.inf
-        best_params = params  # purposefully not a copy
+        best_params = params_vector  # purposefully not a copy
         round_patience = patience
         try:
             for _step_num in iterator:
                 batch = next(iter(train_dataloader))
-                batch = [np.array(a) for a in batch]
-                nll, params, opt_state = train_step(
-                    params,
-                    opt_state,
+                batch = [np.array(a) for a in batch]  # batch contains x, context
+                nll_vector, params_vector, opt_state_vector = parallel_train_step(
+                    params_vector,
+                    opt_state_vector,
                     batch,
                 )
-                if np.isnan(nll):
+
+                if np.any(np.isnan(nll_vector)):
                     print("We've hit nan-ville. Stopping early.")
                     break
 
                 if hasattr(logger, "scalar"):
-                    logger.scalar("train loss", nll, step=(num_round*nsteps)+_step_num)
+                    logger.scalar(
+                        "train loss", nll_vector, step=(num_round * nsteps) + _step_num
+                    )
 
                 if _step_num % eval_interval == 0 and valid_step is not None:
                     assert valid_dataloader is not None, "valid_dataloader is None"
                     batch = [np.array(a) for a in next(iter(valid_dataloader))]
 
                     # assumes first valid metric is the validation loss
-                    valid_metrics = valid_step(params, batch)
-                    if valid_metrics['valid_loss'] < best_valid_loss:
-                        best_valid_loss = valid_metrics['valid_loss']
-                        best_params = params  # TODO: copy just to be safe
-                    elif np.isnan(valid_metrics['valid_loss']) or np.isinf(valid_metrics['valid_loss']):
+                    valid_metrics = parallel_valid_step(params_vector, batch)
+                    mean_val_loss = np.mean(valid_metrics["valid_loss"])
+                    if mean_val_loss < best_valid_loss:
+                        best_valid_loss = mean_val_loss
+                        best_params = params_vector  # TODO: copy just to be safe
+                    elif np.isnan(mean_val_loss) or np.isinf(mean_val_loss):
                         print("We've hit nan-ville. Stopping early.")
                         break
                     else:
@@ -64,16 +73,16 @@ def getTrainer(
                     if hasattr(logger, "scalar"):
                         for key, val in valid_metrics.items():
                             logger.scalar(
-                                f"{key}", val, step=(num_round*nsteps)+_step_num
+                                f"{key}", val, step=(num_round * nsteps) + _step_num
                             )
-                    iterator.set_description(f"Valid loss: {valid_metrics['valid_loss']:.4f}")
+                    iterator.set_description(f"Mean valid loss: {mean_val_loss:.4f}")
                 if round_patience <= 0:
                     break
         except KeyboardInterrupt:
             print("Keyboard interrupted. Stopping early")
             pass
         if valid_step is None:
-            best_params = params
+            best_params = params_vector
 
         return best_params
 

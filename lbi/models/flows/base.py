@@ -9,6 +9,7 @@ def InitializeFlow(
     obs_dim,
     theta_dim,
     flow_model=None,
+    ensemble_size=5,
     num_layers=5,
     hidden_dim=64,
     context_embedding_kwargs=None,
@@ -38,17 +39,26 @@ def InitializeFlow(
     if type(model_rng) is int:
         model_rng = jax.random.PRNGKey(model_rng)
 
+    ensemble_seeds = jax.random.split(model_rng, ensemble_size)
+
     if context_embedding_kwargs is None:
         context_embedding_kwargs = {
             "use_context_embedding": False,
             "embedding_dim": None,
         }
 
-    init_fun = flow_model(num_layers, context_embedding_kwargs=context_embedding_kwargs)
-    initial_params, log_pdf, sample = init_fun(
-        model_rng,
+    init_fn = flow_model(num_layers, context_embedding_kwargs=context_embedding_kwargs)
+
+    parallel_init_fn = jax.vmap(init_fn, in_axes=(0, ))
+
+    initial_params_vector, log_pdf_vector, sample_vector = parallel_init_fn(
+        ensemble_seeds,
         input_dim=obs_dim,
         context_dim=theta_dim,
         hidden_dim=hidden_dim,
     )
-    return initial_params, loss, (log_pdf, sample)
+    
+    log_pdf = log_pdf_vector[0]
+    sample = sample_vector[0]
+    
+    return initial_params_vector, loss, (log_pdf, sample)

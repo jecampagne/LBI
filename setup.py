@@ -30,6 +30,7 @@ setup_keywords["setup_requires"] = [
 setup_keywords["install_requires"] = [
     "trax",
 #     "optax",
+    "flax",
     "torch",
     "nflows",
     "numpyro",

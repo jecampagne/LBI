@@ -1,7 +1,7 @@
-from re import A
+# from re import A
 import jax.numpy as np
+import flax.linen as nn
 import flows
-from jax.experimental import stax
 
 
 def get_masks(input_dim, context_dim=0, hidden_dim=64, num_hidden=1):
@@ -30,17 +30,30 @@ def masked_transform(rng, input_dim, context_dim=0, hidden_dim=64, num_hidden=1)
     masks = get_masks(
         input_dim, context_dim=context_dim, hidden_dim=hidden_dim, num_hidden=num_hidden
     )
-    act = stax.Relu
-    init_fun, apply_fun = stax.serial(
-        flows.MaskedDense(masks[0], use_context=True),
-        act,
-        flows.MaskedDense(masks[1]),
-        act,
-        flows.MaskedDense(
-            masks[2].tile(2)
-        ),  # 2x because it parametrizes affine transform
-    )
-    _, params = init_fun(rng, (input_dim + context_dim,))
+    act = "relu"
+
+    layers = [
+        flows.MaskedDense(features=masks[0].shape[-1], mask=masks[0], use_context=True),
+        getattr(nn, act),
+        flows.MaskedDense(features=masks[1].shape[-1], mask=masks[1]),
+        getattr(nn, act),
+        # tile twice because it parametrizes affine transform which has 2 params per dim
+        flows.MaskedDense(features=masks[2].shape[-1] * 2, mask=masks[2].tile(2)),
+    ]
+
+    @jax.jit
+    def init_params_fn(key, x):
+        variables = flows.utils.Sequential(layers).init(key, x)
+        return variables["params"]
+
+    @jax.jit
+    def apply_fun(params, x, context=None):
+        return flows.utils.Sequential(layers).apply(
+            {"params": params}, x, context=context
+        )
+
+    dummy_input = np.ones((1, *(input_dim + context_dim,)))
+    params = init_params_fn(rng, dummy_input)
     return params, apply_fun
 
 
@@ -50,10 +63,10 @@ def MaskedAffineFlow(n_layers=5, context_embedding_kwargs=None):
 
     returns init_fun
     """
-        
+
     return flows.Flow(
-        transformation=flows.Serial(
-            *(
+        transformation=flows.utils.SeriesTransform(
+            (
                 flows.MADE(masked_transform),
                 flows.Reverse(),
                 flows.ActNorm(),
@@ -92,11 +105,11 @@ if __name__ == "__main__":
 
     # context embedding hyperparams
     context_embedding_kwargs = {
-        "use_context_embedding": False,
+        "use_context_embedding": True,
         "embedding_dim": 16,
         "hidden_dim": 128,
         "num_layers": 2,
-        "act": stax.Relu,
+        "act": "celu",
     }
 
     batch_size = 128
