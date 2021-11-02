@@ -13,7 +13,7 @@ from lbi.models.base import get_train_step, get_valid_step
 from lbi.models.classifier import InitializeClassifier
 from lbi.trainer import getTrainer
 from lbi.sampler import hmc
-from tractable_problem_functions import get_simulator
+from tractable_problem_functions import get_simulator, log_likelihood
 
 import corner
 import matplotlib.pyplot as plt
@@ -26,7 +26,7 @@ seed = 1234
 rng, model_rng, hmc_rng = jax.random.split(jax.random.PRNGKey(seed), num=3)
 
 # Model hyperparameters
-ensemble_size = 20
+ensemble_size = 5
 num_layers = 6
 hidden_dim = 128
 
@@ -39,14 +39,14 @@ slow_step_size = 0.5
 
 # Train hyperparameters
 nsteps = 250000
-patience = 5
+patience = 150
 eval_interval = 100
 
 # Sequential hyperparameters
-num_rounds = 1
+num_rounds = 5
 num_initial_samples = 10000
 num_samples_per_round = 1000
-num_chains = 1
+num_chains = 10
 
 # --------------------------
 # Create logger
@@ -176,17 +176,16 @@ def potential_fn(theta):
     if len(theta.shape) == 1:
         theta = theta[None, :]
 
-    log_pdf_wrapper = lambda model_params, x, theta: log_pdf(
-        model_params.slow if hasattr(model_params, "slow") else model_params, x, theta
-    )
-    parallel_log_pdf = jax.vmap(log_pdf_wrapper, in_axes=(0, None, None))
-    mean_log_pdf = np.mean(parallel_log_pdf(ensemble_params, X_true, theta), axis=-1)
+    parallel_log_pdf = jax.vmap(log_pdf.apply, in_axes=(0, None, None))
 
-    log_post = -mean_log_pdf - log_prior(theta)
+    log_L = parallel_log_pdf({"params": ensemble_params}, X_true, theta)
+    log_L = log_L.mean(axis=0)
+    
+    log_post = - log_L -log_prior(theta)
     return log_post.sum()
 
 
-num_chains = 2
+num_chains = 32
 init_theta = sample_prior(rng, num_samples=num_chains)
 
 mcmc = hmc(
@@ -221,35 +220,35 @@ corner.corner(
 if hasattr(logger, "plot"):
     logger.plot(f"Final Corner Plot", plt, close_plot=True)
 else:
-    plt.show()
+    plt.savefig("temp.png")
 
-data = simulate(rng, theta_samples, num_samples_per_theta=1)
+# data = simulate(rng, theta_samples, num_samples_per_theta=1)
 
-if model_type == "classifier":
-    fpr, tpr, auc = LR_ROC_AUC(
-        rng,
-        model_params,
-        log_pdf,
-        data,
-        theta_samples,
-        data_split=0.05,
-    )
-else:
-    model_samples = sample(rng, model_params, theta_samples)
-    fpr, tpr, auc = ROC_AUC(
-        rng,
-        data,
-        model_samples,
-    )
+# if model_type == "classifier":
+#     fpr, tpr, auc = LR_ROC_AUC(
+#         rng,
+#         ensemble_params,
+#         log_pdf,
+#         data,
+#         theta_samples,
+#         data_split=0.05,
+#     )
+# else:
+#     model_samples = sample(rng, model_params, theta_samples)
+#     fpr, tpr, auc = ROC_AUC(
+#         rng,
+#         data,
+#         model_samples,
+#     )
 
-# Optimal discriminator
-plt.plot(fpr, tpr, label="ROC curve (area = %0.2f)" % auc)
-plt.plot(np.linspace(0, 1, 10), np.linspace(0, 1, 10), linestyle="--", color="black")
-plt.legend(loc="lower right")
+# # Optimal discriminator
+# plt.plot(fpr, tpr, label="ROC curve (area = %0.2f)" % auc)
+# plt.plot(np.linspace(0, 1, 10), np.linspace(0, 1, 10), linestyle="--", color="black")
+# plt.legend(loc="lower right")
 
-if hasattr(logger, "plot"):
-    logger.plot(f"ROC", plt, close_plot=True)
-else:
-    plt.show()
-
-logger.close()
+# if hasattr(logger, "plot"):
+#     logger.plot(f"ROC", plt, close_plot=True)
+# else:
+#     plt.show()
+# 
+# logger.close()

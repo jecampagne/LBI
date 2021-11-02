@@ -35,11 +35,15 @@ def _simulate_X(rng, simulate, theta, num_samples_per_theta: int = 1):
     return simulate(rng, theta, num_samples_per_theta=num_samples_per_theta)
 
 
-def _train_model(trainer, model_params, opt_state, train_dataloader, valid_dataloader, num_round=0):
+def _train_model(
+    trainer, model_params, opt_state, train_dataloader, valid_dataloader, num_round=0
+):
     """
     Train model
     """
-    return trainer(model_params, opt_state, train_dataloader, valid_dataloader, num_round=num_round)
+    return trainer(
+        model_params, opt_state, train_dataloader, valid_dataloader, num_round=num_round
+    )
 
 
 def _sample_posterior(
@@ -57,9 +61,12 @@ def _sample_posterior(
         if len(theta.shape) == 1:
             theta = theta[None, :]
 
-        log_post = -log_pdf(model_params, X_true, theta) - log_prior(
-            theta
-        )
+        parallel_log_pdf = jax.vmap(log_pdf.apply, in_axes=(0, None, None))
+
+        log_L = parallel_log_pdf({"params": model_params}, X_true, theta)
+        log_L = log_L.mean(axis=0)
+
+        log_post = -log_L - log_prior(theta)
         return log_post.sum()
 
     if num_warmup is None:
@@ -117,26 +124,30 @@ def _sequential_round(
         num_warmup_per_round = num_samples_per_round
     if Theta_New is not None:
         X_New = _simulate_X(rng, simulate, Theta_New, num_samples_per_theta)
-        
+
         # Remove nans
         nan_idx = onp.any(onp.isnan(X_New), axis=1)
         X_New = X_New[~nan_idx]
         Theta_New = Theta_New[~nan_idx]
-        
-        
+
     if Theta_Old is not None:
         Theta = np.vstack([Theta_Old, Theta_New])
     else:
         Theta = Theta_New
-        
+
     if X is not None:
         X = np.vstack([X, X_New])
-    else: 
+    else:
         X = X_New
-        
+
     train_dataloader, valid_dataloader = data_loader_builder(X=X, Theta=Theta)
     model_params = _train_model(
-        trainer, model_params, opt_state, train_dataloader, valid_dataloader, num_round=num_round,
+        trainer,
+        model_params,
+        opt_state,
+        train_dataloader,
+        valid_dataloader,
+        num_round=num_round,
     )
 
     # some mcmc stuff
@@ -229,7 +240,6 @@ def sequential(
         import numpy as onp
         from lbi.diagnostics import AUC, MMD
 
-
         theta_dim = Theta.shape[-1]
 
         # try:
@@ -240,8 +250,7 @@ def sequential(
         #         smooth=(1.0),
         #         smooth1d=(1.0),
         #     )
-            
-            
+
         #     if hasattr(logger, "plot"):
         #         logger.plot(f"diagnostic_corner", plt, close_plot=True, step=(i+1))
         #     else:
