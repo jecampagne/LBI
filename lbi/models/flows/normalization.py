@@ -7,11 +7,15 @@ from typing import Any
 
 
 class ActNorm(nn.Module):
+    """
+    Mostly copied from
+    https://www.kaggle.com/ameroyer/introduction-to-glow-generative-model-in-jax
+    """
     scale: float = 1.0
     eps: float = 1e-8
 
     @compact
-    def __call__(self, inputs, logdet=0, reverse=False):
+    def __call__(self, inputs, context=None, reverse=False):
         axes = tuple(i for i in range(len(inputs.shape) - 1))
 
         def dd_mean_initializer(key, shape):
@@ -44,7 +48,7 @@ class ActNorm(nn.Module):
         return outputs, log_det_jacobian
 
     def forward(self, inputs, context=None):
-        return self(inputs, context, reverse=False)
+        return self(inputs, context=context, reverse=False)
 
     def inverse(self, inputs, context=None):
-        return self(inputs, context, reverse=True)
+        return self(inputs, context=context, reverse=True)

@@ -1,5 +1,4 @@
-# from re import A
-from flax.linen.module import compact
+import jax
 import jax.numpy as np
 import flax.linen as nn
 
@@ -33,7 +32,7 @@ def MakeMAF(
         context_embedding_dim = context_dim
     else:
         context_dim = context_embedding_dim
-        
+
     made_kwargs = {
         "input_dim": input_dim,
         "hidden_dim": hidden_dim,
@@ -42,16 +41,20 @@ def MakeMAF(
     }
 
     reverse_kwargs = {"input_dim": input_dim}
+    random_kwargs = {"input_dim": input_dim, "rng": jax.random.PRNGKey(0)}
     actnorm_kwargs = {}
 
     reverse = permutations.Reverse
+    random = permutations.Random
     actnorm = normalization.ActNorm
+    conv = permutations.Conv1x1
 
     return flow.Flow(
         transformation=utils.SeriesTransform(
             (
-                made_module.MADE(**made_kwargs),
-                reverse(**reverse_kwargs),
+                # made_module.MADE(**made_kwargs),
+                # random(**random_kwargs),
+                # reverse(**reverse_kwargs),
                 actnorm(**actnorm_kwargs),
             )
             * n_layers,
@@ -131,8 +134,6 @@ if __name__ == "__main__":
         TensorDataset(X_train_s, y_train), batch_size=batch_size, shuffle=True
     )
 
-
-
     # --------------------
     # Create the model
     # --------------------
@@ -167,7 +168,6 @@ if __name__ == "__main__":
             iterator.set_description("nll = {:.3f}".format(nll))
     except KeyboardInterrupt:
         pass
-
 
     plt.scatter(*X_train.T, color="grey", alpha=0.01, marker=".")
     samples_0 = maf.apply(
