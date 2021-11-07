@@ -129,6 +129,8 @@ def _sequential_round(
         nan_idx = onp.any(onp.isnan(X_New), axis=1)
         X_New = X_New[~nan_idx]
         Theta_New = Theta_New[~nan_idx]
+        
+        print(f'Number of non-nan samples: {X_New.shape[0]}')
 
     if Theta_Old is not None:
         Theta = np.vstack([Theta_Old, Theta_New])
@@ -139,6 +141,7 @@ def _sequential_round(
         X = np.vstack([X, X_New])
     else:
         X = X_New
+
 
     train_dataloader, valid_dataloader = data_loader_builder(X=X, Theta=Theta)
     model_params = _train_model(

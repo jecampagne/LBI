@@ -1,60 +1,18 @@
 # from re import A
+from flax.linen.module import compact
 import jax.numpy as np
 import flax.linen as nn
-import flows
 
+import flow
+import priors
+import made as made_module
+import permutations
+import normalization
+import utils 
 
-def get_masks(input_dim, context_dim=0, hidden_dim=64, num_hidden=1):
-    masks = []
-    degrees = [np.arange(input_dim)]
-    input_degrees = np.arange(input_dim)
+from typing import Any
 
-    for n_h in range(num_hidden + 1):
-        degrees += [np.arange(hidden_dim) % (input_dim - 1)]
-    degrees += [input_degrees % input_dim - 1]
-
-    for i, (d0, d1) in enumerate(zip(degrees[:-1], degrees[1:])):
-        mask = np.transpose(np.expand_dims(d1, -1) >= np.expand_dims(d0, 0)).astype(
-            np.float32
-        )
-        if i == 0:  # pass in context
-            # TODO: This still doesn't pass context to the most-masked element.
-            #       Need to figure out how to do that effectively.
-            mask = np.vstack((mask, np.ones((context_dim, mask.shape[-1]))))
-        masks += [mask]
-
-    return masks
-
-
-def masked_transform(rng, input_dim, context_dim=0, hidden_dim=64, num_hidden=1):
-    masks = get_masks(
-        input_dim, context_dim=context_dim, hidden_dim=hidden_dim, num_hidden=num_hidden
-    )
-    act = "relu"
-
-    layers = [
-        flows.MaskedDense(features=masks[0].shape[-1], mask=masks[0], use_context=True),
-        getattr(nn, act),
-        flows.MaskedDense(features=masks[1].shape[-1], mask=masks[1]),
-        getattr(nn, act),
-        # tile twice because it parametrizes affine transform which has 2 params per dim
-        flows.MaskedDense(features=masks[2].shape[-1] * 2, mask=masks[2].tile(2)),
-    ]
-
-    @jax.jit
-    def init_params_fn(key, x):
-        variables = flows.utils.Sequential(layers).init(key, x)
-        return variables["params"]
-
-    @jax.jit
-    def apply_fun(params, x, context=None):
-        return flows.utils.Sequential(layers).apply(
-            {"params": params}, x, context=context
-        )
-
-    dummy_input = np.ones((1, *(input_dim + context_dim,)))
-    params = init_params_fn(rng, dummy_input)
-    return params, apply_fun
+Distribution = Any
 
 
 def MaskedAffineFlow(n_layers=5, context_embedding_kwargs=None):
@@ -63,23 +21,40 @@ def MaskedAffineFlow(n_layers=5, context_embedding_kwargs=None):
 
     returns init_fun
     """
-    made = flows.MADE(masked_transform)
-    reverse = flows.Reverse()
-    actnorm = flows.ActNorm()
+    made = made_module.MADE(
+        input_dim=input_dim,
+        hidden_dim=hidden_dim,
+        context_dim=context_dim,
+        output_dim_multiplier=2,
+    )
+    reverse = permutations.Reverse(input_dim=input_dim)
+    actnorm = normalization.ActNorm()
 
-    return flows.Flow(
-        transformation=flows.bijections.SeriesTransform(
+    return flow.Flow(
+        transformation=utils.SeriesTransform(
             (
                 made,
                 reverse,
-                actnorm,
-            ), 
-            
-            * n_layers
+                # actnorm,
+            ),
+            *n_layers
         ),
-        prior=flows.Normal(),
+        prior=priors.Normal(),
         context_embedding_kwargs=context_embedding_kwargs,
     )
+
+
+class MaskedAffineFlow(nn.Module):
+    input_dim: int
+    n_layers: int
+    prior: Distribution
+
+    def setup(self):
+        return super().setup()
+
+    @compact
+    def apply(self, x, context=None):
+        pass
 
 
 if __name__ == "__main__":

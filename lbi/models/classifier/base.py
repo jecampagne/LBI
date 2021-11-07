@@ -12,7 +12,7 @@ def init_fn(input_shape, rng, classifier_fns, optimizer):
     return params, opt_state
 
 
-parallel_init_fn = jax.vmap(init_fn, in_axes=(None, 0, None, None), out_axes=(0, 0))
+parallel_init_fn = jax.vmap(init_fn, in_axes=(None, 0, None, None))#, out_axes=(0, 0))
 
 
 def InitializeClassifier(
@@ -66,7 +66,5 @@ def InitializeClassifier(
     initial_ensemble_params, initial_opt_state_ensemble = parallel_init_fn(
         (obs_dim + theta_dim,), ensemble_seeds, logit_d, optimizer
     )
-
-    # from IPython import embed; embed()
 
     return loss, logit_d, initial_ensemble_params, initial_opt_state_ensemble

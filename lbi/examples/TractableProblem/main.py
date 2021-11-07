@@ -26,8 +26,8 @@ seed = 1234
 rng, model_rng, hmc_rng = jax.random.split(jax.random.PRNGKey(seed), num=3)
 
 # Model hyperparameters
-ensemble_size = 5
-num_layers = 2
+ensemble_size = 15
+num_layers = 1
 hidden_dim = 32
 
 # Optimizer hyperparmeters

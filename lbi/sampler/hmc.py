@@ -13,6 +13,7 @@ def hmc(
     num_warmup=100,
     num_samples=50,
     num_chains=1,
+    chain_method="vectorized",
 ):
 
     nuts_kernel = numpyro.infer.NUTS(
@@ -28,6 +29,7 @@ def hmc(
         num_samples=num_samples,
         num_warmup=num_warmup,
         num_chains=num_chains,
+        chain_method=chain_method,
     )
 
     # TODO: make sure x0 is being used in posterior (because it's not being used in run)

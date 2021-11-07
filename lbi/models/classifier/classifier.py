@@ -18,6 +18,7 @@ class ResidualBlock(nn.Module):
 
 
 class Classifier(nn.Module):
+    # TODO: replace with MLP 
     num_layers: 5
     hidden_dim: 128
     use_residual: bool = False
