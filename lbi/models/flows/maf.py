@@ -49,7 +49,7 @@ def MakeMAF(
         transformation=utils.SeriesTransform(
             (
                 made_module.MADE(**made_kwargs),
-                # reverse(**reverse_kwargs),
+                reverse(**reverse_kwargs),
                 # actnorm(**actnorm_kwargs),
             )
             * n_layers,

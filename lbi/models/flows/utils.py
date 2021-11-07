@@ -39,7 +39,7 @@ class SeriesTransform(nn.Module):
     def inverse(self, z, context=None):
         outputs = z
         log_det_jacobian = np.zeros((z.shape[0], 1))
-        for transformation in self.transformations:
-            outputs, log_det_J = transformation(outputs, context)
+        for transformation in self.transformations[::-1]:
+            outputs, log_det_J = transformation.inverse(outputs, context)
             log_det_jacobian += log_det_J
         return outputs, log_det_jacobian

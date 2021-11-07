@@ -126,10 +126,10 @@ class MADE(nn.Module):
 
     @compact
     def __call__(self, inputs, context=None):
-        # print(self.transform(inputs, context=context))
         log_weight, bias = self.transform(inputs, context=context).split(
             self.output_dim_multiplier, axis=1
         )
+        # print("forward", log_weight, bias)
         outputs = (inputs - bias) * np.exp(-log_weight)
         log_det_jacobian = -log_weight.sum(-1)
         return outputs, log_det_jacobian
@@ -140,14 +140,14 @@ class MADE(nn.Module):
     def inverse(self, inputs, context=None):
         outputs = np.zeros_like(inputs)
         for i_col in range(inputs.shape[1]):
-            log_weight, bias = self.transform(inputs, context=context).split(
+            log_weight, bias = self.transform(outputs, context=context).split(
                 self.output_dim_multiplier, axis=1
             )
-            outputs = jax.ops.index_update(
-                outputs,
-                jax.ops.index[:, i_col],
-                inputs[:, i_col] * np.exp(log_weight[:, i_col]) + bias[:, i_col],
+            # print("inverse", log_weight, bias)
+            outputs = outputs.at[:, i_col].set(
+                inputs[:, i_col] * np.exp(log_weight[:, i_col]) + bias[:, i_col]
             )
+            
         log_det_jacobian = -log_weight.sum(-1)
         return outputs, log_det_jacobian
 
