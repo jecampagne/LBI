@@ -5,10 +5,13 @@ from typing import Any
 
 
 class ActNorm(nn.Module):
+    input_dim: int 
+    log_weight: None = None
+    bias: None = None
+    
     def setup(self):
-        init_inputs = self.param("kernel")  # idk if this can work
-        self.log_weight = np.log(1.0 / (init_inputs.std(0) + 1e-6))
-        self.bias = init_inputs.mean(0)
+        log_weight = np.zeros(self.input_dim)
+        bias = np.zeros(self.input_dim)
 
     def __call__(self, inputs, *args: Any, **kwds: Any):
         outputs = (inputs - self.bias) * np.exp(self.log_weight)

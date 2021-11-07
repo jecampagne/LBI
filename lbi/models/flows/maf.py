@@ -40,15 +40,17 @@ def MakeMAF(
     }
 
     reverse_kwargs = {"input_dim": input_dim}
+    actnorm_kwargs = {"input_dim": input_dim}
 
     reverse = permutations.Reverse
-    # actnorm = normalization.ActNorm()
+    actnorm = normalization.ActNorm
 
     return flow.Flow(
         transformation=utils.SeriesTransform(
             (
                 made_module.MADE(**made_kwargs),
-                reverse(**reverse_kwargs),
+                # reverse(**reverse_kwargs),
+                # actnorm(**actnorm_kwargs),
             )
             * n_layers,
             context_embedding=context_embedding,
@@ -73,10 +75,9 @@ if __name__ == "__main__":
         nll = -maf.apply(params, *batch).mean()
         return nll
 
-    def init_fn(seed, input_shape, context_shape=None):
+    def init_fn(rng, input_shape, context_shape=None):
         if context_shape is None:
             context_shape = (0,)
-        rng = jax.random.PRNGKey(seed)  # jr = jax.random
         dummy_input = np.ones((1, *input_shape))
         dummy_context = np.ones((1, *context_shape))
         params = maf.init(rng, dummy_input, context=dummy_context)  # do shape inference
@@ -103,9 +104,11 @@ if __name__ == "__main__":
         "act": "celu",
     }
 
+    learning_rate = 1e-3
     batch_size = 128
     seed = 1234
-    nsteps = 40
+    nsteps = 100
+    rng = jax.random.PRNGKey(seed)
 
     X, y = make_moons(n_samples=10000, noise=0.05, random_state=seed)
     y = y[:, None]
@@ -122,7 +125,6 @@ if __name__ == "__main__":
         TensorDataset(X_train_s, y_train), batch_size=batch_size, shuffle=True
     )
 
-    rng = jax.random.PRNGKey(seed)
 
     maf = MakeMAF(
         input_dim=input_dim,
@@ -132,19 +134,18 @@ if __name__ == "__main__":
         context_embedding=None,
     )
 
-    learning_rate = 1e-4
 
-    iterator = tqdm(range(nsteps))
     params = init_fn(
+        rng=rng,
         input_shape=(input_dim,),
         context_shape=(context_dim,),
-        seed=0,
     )
     optimizer = optax.adam(learning_rate=learning_rate)
     opt_state = optimizer.init(params)
 
     train_step = get_train_step(loss_fn, optimizer)
 
+    iterator = tqdm(range(nsteps))
     try:
         for _ in iterator:
             for batch in train_dataloader:
@@ -164,7 +165,7 @@ if __name__ == "__main__":
     )
     plt.scatter(*samples_1.T, color="blue", label="1", marker=".", alpha=0.2)
 
-    plt.xlim(-1.5, 2.5)
-    plt.ylim(-1, 1.5)
+    # plt.xlim(-1.5, 2.5)
+    # plt.ylim(-1, 1.5)
     plt.legend()
     plt.show()

@@ -126,6 +126,7 @@ class MADE(nn.Module):
 
     @compact
     def __call__(self, inputs, context=None):
+        # print(self.transform(inputs, context=context))
         log_weight, bias = self.transform(inputs, context=context).split(
             self.output_dim_multiplier, axis=1
         )
