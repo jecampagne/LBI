@@ -52,7 +52,7 @@ def MakeMAF(
             (
                 made_module.MADE(**made_kwargs),
                 reverse(**reverse_kwargs),
-                # actnorm(**actnorm_kwargs),
+                actnorm(**actnorm_kwargs),
             )
             * n_layers,
             context_embedding=context_embedding,
