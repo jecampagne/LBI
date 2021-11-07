@@ -31,7 +31,9 @@ def MakeMAF(
 
     if context_embedding is None:
         context_embedding_dim = context_dim
-
+    else:
+        context_dim = context_embedding_dim
+        
     made_kwargs = {
         "input_dim": input_dim,
         "hidden_dim": hidden_dim,
@@ -40,7 +42,7 @@ def MakeMAF(
     }
 
     reverse_kwargs = {"input_dim": input_dim}
-    actnorm_kwargs = {"input_dim": input_dim}
+    actnorm_kwargs = {}
 
     reverse = permutations.Reverse
     actnorm = normalization.ActNorm
@@ -61,7 +63,7 @@ def MakeMAF(
 
 if __name__ == "__main__":
     import jax
-    from MLP import MLP
+    from lbi.models.MLP import MLP
     import optax
     import torch
     from torch.utils.data import DataLoader, TensorDataset
@@ -94,20 +96,20 @@ if __name__ == "__main__":
 
     # context embedding hyperparams
     context_embedding_kwargs = {
-        "embedding_dim": 16,
-        "hidden_dim": 128,
-        "num_layers": 2,
-        "act": "celu",
+        "output_dim": 4,
+        "hidden_dim": 8,
+        "num_layers": 1,
+        "act": "leaky_relu",
     }
 
     seed = 1234
 
-    learning_rate = 1e-2
+    learning_rate = 1e-3
     batch_size = 128
-    nsteps = 100
+    nsteps = 40
 
-    n_layers = 1
-    hidden_dim = 64
+    n_layers = 2
+    hidden_dim = 32
 
     rng = jax.random.PRNGKey(seed)
 
@@ -143,6 +145,7 @@ if __name__ == "__main__":
         hidden_dim=hidden_dim,
         n_layers=n_layers,
         context_embedding=context_embedding,
+        context_embedding_dim=context_embedding_kwargs["output_dim"],
     )
 
     params = init_fn(
@@ -164,6 +167,7 @@ if __name__ == "__main__":
             iterator.set_description("nll = {:.3f}".format(nll))
     except KeyboardInterrupt:
         pass
+
 
     plt.scatter(*X_train.T, color="grey", alpha=0.01, marker=".")
     samples_0 = maf.apply(

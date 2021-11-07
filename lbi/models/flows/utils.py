@@ -22,11 +22,11 @@ class SeriesTransform(nn.Module):
     context_embedding: nn.Module = None
 
     def __call__(self, x, context=None):
-        outputs = x
-        log_det_jacobian = np.zeros((x.shape[0], ))
-
         if self.context_embedding is not None:
             context = self.context_embedding(context)
+            
+        outputs = x
+        log_det_jacobian = np.zeros((x.shape[0], ))
 
         for transformation in self.transformations:
             outputs, log_det_J = transformation(outputs, context)
@@ -37,8 +37,12 @@ class SeriesTransform(nn.Module):
         self(x, context)
 
     def inverse(self, z, context=None):
+        if self.context_embedding is not None:
+            context = self.context_embedding(context)
+            
         outputs = z
         log_det_jacobian = np.zeros((z.shape[0], 1))
+        
         for transformation in self.transformations[::-1]:
             outputs, log_det_J = transformation.inverse(outputs, context)
             log_det_jacobian += log_det_J
