@@ -61,10 +61,10 @@ def MakeMAF(
 
 if __name__ == "__main__":
     import jax
+    from MLP import MLP
     import optax
     import torch
     from torch.utils.data import DataLoader, TensorDataset
-    from jax.experimental import stax
     from sklearn.datasets import make_moons
     from sklearn.preprocessing import StandardScaler
     from sklearn.model_selection import train_test_split
@@ -92,24 +92,28 @@ if __name__ == "__main__":
 
         return train_step
 
-    hidden_dim = 32
-    n_layers = 1
-
     # context embedding hyperparams
     context_embedding_kwargs = {
-        "use_context_embedding": True,
         "embedding_dim": 16,
         "hidden_dim": 128,
         "num_layers": 2,
         "act": "celu",
     }
 
-    learning_rate = 1e-3
-    batch_size = 128
     seed = 1234
+
+    learning_rate = 1e-2
+    batch_size = 128
     nsteps = 100
+
+    n_layers = 1
+    hidden_dim = 64
+
     rng = jax.random.PRNGKey(seed)
 
+    # --------------------
+    # Create the dataset
+    # --------------------
     X, y = make_moons(n_samples=10000, noise=0.05, random_state=seed)
     y = y[:, None]
     input_dim = X.shape[1]
@@ -126,14 +130,20 @@ if __name__ == "__main__":
     )
 
 
+
+    # --------------------
+    # Create the model
+    # --------------------
+
+    context_embedding = MLP(**context_embedding_kwargs)
+
     maf = MakeMAF(
         input_dim=input_dim,
         context_dim=context_dim,
         hidden_dim=hidden_dim,
         n_layers=n_layers,
-        context_embedding=None,
+        context_embedding=context_embedding,
     )
-
 
     params = init_fn(
         rng=rng,
@@ -165,7 +175,7 @@ if __name__ == "__main__":
     )
     plt.scatter(*samples_1.T, color="blue", label="1", marker=".", alpha=0.2)
 
-    # plt.xlim(-1.5, 2.5)
-    # plt.ylim(-1, 1.5)
+    plt.xlim(-1.5, 2.5)
+    plt.ylim(-1, 1.5)
     plt.legend()
     plt.show()

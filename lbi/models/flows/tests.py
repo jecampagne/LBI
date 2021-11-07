@@ -45,8 +45,6 @@ def check_invertibility(seed=452):
         params, sample_latent, sample_context, method=maf.inverse
     )[0]
 
-
-    print(sample_input, sample_input_back)
     delta = sample_input - sample_input_back
 
     if np.allclose(sample_input, sample_input_back):
