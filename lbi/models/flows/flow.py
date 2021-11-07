@@ -35,6 +35,7 @@ class Flow(nn.Module):
         log_prob is extra in that case
         """
         num_samples = self.get_num_samples(num_samples, context)
+
         prior_samples = self.prior.sample(rng, num_samples)
         x, log_det_jacobian = self.transformation.inverse(
             prior_samples, context=context
@@ -42,6 +43,8 @@ class Flow(nn.Module):
         return x
 
     def sample_with_log_prob(self, rng, num_samples=0, context=None):
+        num_samples = self.get_num_samples(num_samples, context)
+
         prior_samples, prior_log_prob = self.prior.sample_with_log_prob(
             rng, num_samples=num_samples
         )
