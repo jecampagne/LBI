@@ -1,6 +1,9 @@
 import jax
 import jax.numpy as np
 import flax.linen as nn
+from typing import Any
+
+Array = Any
 
 
 class Reverse(nn.Module):
@@ -22,7 +25,8 @@ class Random(nn.Module):
     """
     Probably best to use different rng's for each permutation
     """
-    rng: jax.random.Generator
+
+    rng: Array
     input_dim: int
 
     def setup(self):

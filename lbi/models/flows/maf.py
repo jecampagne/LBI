@@ -8,53 +8,53 @@ import priors
 import made as made_module
 import permutations
 import normalization
-import utils 
+import utils
 
 from typing import Any
 
 Distribution = Any
 
 
-def MaskedAffineFlow(n_layers=5, context_embedding_kwargs=None):
+def MakeMAF(
+    input_dim: int,
+    hidden_dim: int = 64,
+    context_dim: int = 0,
+    n_layers: int = 5,
+    context_embedding: nn.Module = None,
+    context_embedding_dim: int = 0,
+):
     """
     A sequence of affine transformations with a masked affine transform.
 
     returns init_fun
     """
-    made = made_module.MADE(
-        input_dim=input_dim,
-        hidden_dim=hidden_dim,
-        context_dim=context_dim,
-        output_dim_multiplier=2,
-    )
-    reverse = permutations.Reverse(input_dim=input_dim)
-    actnorm = normalization.ActNorm()
+
+    if context_embedding is None:
+        context_embedding_dim = context_dim
+
+    made_kwargs = {
+        "input_dim": input_dim,
+        "hidden_dim": hidden_dim,
+        "context_dim": context_dim,
+        "output_dim_multiplier": 2,
+    }
+
+    reverse_kwargs = {"input_dim": input_dim}
+
+    reverse = permutations.Reverse
+    # actnorm = normalization.ActNorm()
 
     return flow.Flow(
         transformation=utils.SeriesTransform(
             (
-                made,
-                reverse,
-                # actnorm,
-            ),
-            *n_layers
+                made_module.MADE(**made_kwargs),
+                reverse(**reverse_kwargs),
+            )
+            * n_layers,
+            context_embedding=context_embedding,
         ),
-        prior=priors.Normal(),
-        context_embedding_kwargs=context_embedding_kwargs,
+        prior=priors.Normal(dim=input_dim),
     )
-
-
-class MaskedAffineFlow(nn.Module):
-    input_dim: int
-    n_layers: int
-    prior: Distribution
-
-    def setup(self):
-        return super().setup()
-
-    @compact
-    def apply(self, x, context=None):
-        pass
 
 
 if __name__ == "__main__":
@@ -69,14 +69,29 @@ if __name__ == "__main__":
     from tqdm.auto import tqdm
     import matplotlib.pyplot as plt
 
-    def loss(params, inputs, context=None):
-        return -log_pdf(params, inputs, context).mean()
+    def loss_fn(params, batch):
+        return -flow.apply({"params": params}, *batch)
 
-    @jax.jit
-    def train_step(params, opt_state, batch):
-        nll, grads = jax.value_and_grad(loss)(params, *batch)
-        updates, opt_state = opt_update(grads, opt_state, params)
-        return nll, optax.apply_updates(params, updates), opt_state
+    def init_fn(input_shape, seed, context_shape=None):
+        if context_shape is None:
+            context_shape = (0,)
+        rng = jax.random.PRNGKey(seed)  # jr = jax.random
+        dummy_input = np.ones((1, *input_shape))
+        dummy_context = np.ones((1, *context_shape))
+        params = flow.init(rng, dummy_input, context=dummy_context)["params"]  # do shape inference
+        optimizer_def = optax.adam(learning_rate=1e-3)
+        optimizer = optimizer_def.create(params)
+        return optimizer
+
+    # @jax.jit
+    def train_step(optimizer, batch):
+        loss = loss_fn(optimizer.target, batch)
+        loss, grad = jax.value_and_grad(optimizer.target, *batch)
+        optimizer = optimizer.apply_gradient(grad)
+        return optimizer, loss
+        # nll, grads = jax.value_and_grad(loss)(params, *batch)
+        # updates, opt_state = opt_update(grads, opt_state, params)
+        # return nll, optax.apply_updates(params, updates), opt_state
 
     hidden_dim = 32
 
@@ -111,42 +126,40 @@ if __name__ == "__main__":
     )
 
     rng = jax.random.PRNGKey(seed)
-    params, log_pdf, sample = MaskedAffineFlow(
-        n_layers=n_layers,
-        context_embedding_kwargs=context_embedding_kwargs,
-    )(
-        rng,
+
+    flow = MakeMAF(
         input_dim=input_dim,
         context_dim=context_dim,
-        hidden_dim=hidden_dim,
+        hidden_dim=64,
+        n_layers=5,
+        context_embedding=None,
     )
 
     learning_rate = 1e-4
-    opt_init, opt_update = optax.chain(
-        # Set the parameters of Adam. Note the learning_rate is not here.
-        optax.adamw(learning_rate=learning_rate),
-    )
-
-    opt_state = opt_init(params)
 
     iterator = tqdm(range(nsteps))
+    model_state = init_fn(
+        input_shape=(input_dim,),
+        context_shape=(context_dim,),
+        seed=0,
+    )
     try:
         for _ in iterator:
             for batch in train_dataloader:
                 batch = [np.array(a) for a in batch]
-                nll, params, opt_state = train_step(params, opt_state, batch)
+                optimizer, nll = train_step(optimizer, batch)
             iterator.set_description("nll = {:.3f}".format(nll))
     except KeyboardInterrupt:
         pass
 
     plt.scatter(*X_train.T, color="grey", alpha=0.01, marker=".")
 
-    samples_0 = sample(rng, params, context=np.zeros((1000, context_dim)))
-    plt.scatter(*samples_0.T, color="red", label="0", marker=".", alpha=0.2)
-    samples_1 = sample(rng, params, context=np.ones((1000, context_dim)))
-    plt.scatter(*samples_1.T, color="blue", label="1", marker=".", alpha=0.2)
+    # samples_0 = sample(rng, params, context=np.zeros((1000, context_dim)))
+    # plt.scatter(*samples_0.T, color="red", label="0", marker=".", alpha=0.2)
+    # samples_1 = sample(rng, params, context=np.ones((1000, context_dim)))
+    # plt.scatter(*samples_1.T, color="blue", label="1", marker=".", alpha=0.2)
 
-    plt.xlim(-1.5, 2.5)
-    plt.ylim(-1, 1.5)
-    plt.legend()
-    plt.show()
+    # plt.xlim(-1.5, 2.5)
+    # plt.ylim(-1, 1.5)
+    # plt.legend()
+    # plt.show()
