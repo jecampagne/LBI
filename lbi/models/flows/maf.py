@@ -53,9 +53,9 @@ def MakeMAF(
         transformation=utils.SeriesTransform(
             (
                 made_module.MADE(**made_kwargs),
-                random(**random_kwargs),
-                # reverse(**reverse_kwargs),
-                # actnorm(**actnorm_kwargs),
+                # random(**random_kwargs),
+                reverse(**reverse_kwargs),
+                actnorm(**actnorm_kwargs),
             )
             * n_layers,
             context_embedding=context_embedding,
