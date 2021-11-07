@@ -70,32 +70,29 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     def loss_fn(params, batch):
-        return -flow.apply({"params": params}, *batch)
+        nll = -maf.apply(params, *batch).mean()
+        return nll
 
-    def init_fn(input_shape, seed, context_shape=None):
+    def init_fn(seed, input_shape, context_shape=None):
         if context_shape is None:
             context_shape = (0,)
         rng = jax.random.PRNGKey(seed)  # jr = jax.random
         dummy_input = np.ones((1, *input_shape))
         dummy_context = np.ones((1, *context_shape))
-        params = flow.init(rng, dummy_input, context=dummy_context)["params"]  # do shape inference
-        optimizer_def = optax.adam(learning_rate=1e-3)
-        optimizer = optimizer_def.create(params)
-        return optimizer
+        params = maf.init(rng, dummy_input, context=dummy_context)  # do shape inference
+        return params
 
-    # @jax.jit
-    def train_step(optimizer, batch):
-        loss = loss_fn(optimizer.target, batch)
-        loss, grad = jax.value_and_grad(optimizer.target, *batch)
-        optimizer = optimizer.apply_gradient(grad)
-        return optimizer, loss
-        # nll, grads = jax.value_and_grad(loss)(params, *batch)
-        # updates, opt_state = opt_update(grads, opt_state, params)
-        # return nll, optax.apply_updates(params, updates), opt_state
+    def get_train_step(loss_fn, optimizer):
+        @jax.jit
+        def train_step(params, opt_state, batch):
+            loss, grads = jax.value_and_grad(loss_fn)(params, batch)
+            updates, opt_state = optimizer.update(grads, opt_state, params)
+            return loss, optax.apply_updates(params, updates), opt_state
+
+        return train_step
 
     hidden_dim = 32
-
-    n_layers = 4
+    n_layers = 1
 
     # context embedding hyperparams
     context_embedding_kwargs = {
@@ -127,39 +124,47 @@ if __name__ == "__main__":
 
     rng = jax.random.PRNGKey(seed)
 
-    flow = MakeMAF(
+    maf = MakeMAF(
         input_dim=input_dim,
         context_dim=context_dim,
-        hidden_dim=64,
-        n_layers=5,
+        hidden_dim=hidden_dim,
+        n_layers=n_layers,
         context_embedding=None,
     )
 
     learning_rate = 1e-4
 
     iterator = tqdm(range(nsteps))
-    model_state = init_fn(
+    params = init_fn(
         input_shape=(input_dim,),
         context_shape=(context_dim,),
         seed=0,
     )
+    optimizer = optax.adam(learning_rate=learning_rate)
+    opt_state = optimizer.init(params)
+
+    train_step = get_train_step(loss_fn, optimizer)
+
     try:
         for _ in iterator:
             for batch in train_dataloader:
                 batch = [np.array(a) for a in batch]
-                optimizer, nll = train_step(optimizer, batch)
+                nll, params, opt_state = train_step(params, opt_state, batch)
             iterator.set_description("nll = {:.3f}".format(nll))
     except KeyboardInterrupt:
         pass
 
     plt.scatter(*X_train.T, color="grey", alpha=0.01, marker=".")
+    samples_0 = maf.apply(
+        params, rng, context=np.zeros((1000, context_dim)), method=maf.sample
+    )
+    plt.scatter(*samples_0.T, color="red", label="0", marker=".", alpha=0.2)
+    samples_1 = maf.apply(
+        params, rng, context=np.ones((1000, context_dim)), method=maf.sample
+    )
+    plt.scatter(*samples_1.T, color="blue", label="1", marker=".", alpha=0.2)
 
-    # samples_0 = sample(rng, params, context=np.zeros((1000, context_dim)))
-    # plt.scatter(*samples_0.T, color="red", label="0", marker=".", alpha=0.2)
-    # samples_1 = sample(rng, params, context=np.ones((1000, context_dim)))
-    # plt.scatter(*samples_1.T, color="blue", label="1", marker=".", alpha=0.2)
-
-    # plt.xlim(-1.5, 2.5)
-    # plt.ylim(-1, 1.5)
-    # plt.legend()
-    # plt.show()
+    plt.xlim(-1.5, 2.5)
+    plt.ylim(-1, 1.5)
+    plt.legend()
+    plt.show()

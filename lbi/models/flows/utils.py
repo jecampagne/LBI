@@ -23,7 +23,7 @@ class SeriesTransform(nn.Module):
 
     def __call__(self, x, context=None):
         outputs = x
-        log_det_jacobian = np.zeros((x.shape[0], 1))
+        log_det_jacobian = np.zeros((x.shape[0], ))
 
         if self.context_embedding is not None:
             context = self.context_embedding(context)

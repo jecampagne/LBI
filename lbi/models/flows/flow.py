@@ -8,13 +8,12 @@ class Flow(nn.Module):
     prior: nn.Module
 
     def __call__(self, x, context=None):
-        u, log_det_jacobian = self.transformation(x, context=context)
-        print(u, jax.scipy.stats.norm.logpdf(u))
-        base_log_prob = self.prior.log_prob(u)
-        return u, base_log_prob + log_det_jacobian
+        return self.forward(x, context=context)[1]
 
     def forward(self, x, context=None):
-        return self(x, context=context)
+        u, log_det_jacobian = self.transformation(x, context=context)
+        base_log_prob = self.prior.log_prob(u)
+        return u, base_log_prob + log_det_jacobian
 
     def inverse(self, u, context=None):
         x, log_det_jacobian = self.transformation.inverse(u, context=context)
@@ -22,13 +21,20 @@ class Flow(nn.Module):
         return x, base_log_prob + log_det_jacobian
 
     def log_prob(self, x, context=None):
-        return self(x, context=context)[1]
+        return self(x, context=context)
+
+    def get_num_samples(self, num_samples, context):
+        if context is None:
+            return num_samples
+        else:
+            return context.shape[0]
 
     def sample(self, rng, num_samples=0, context=None):
         """
         Not using sample_with_log_prob because evaluting the
         log_prob is extra in that case
         """
+        num_samples = self.get_num_samples(num_samples, context)
         prior_samples = self.prior.sample(rng, num_samples)
         x, log_det_jacobian = self.transformation.inverse(
             prior_samples, context=context
