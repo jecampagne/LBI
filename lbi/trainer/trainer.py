@@ -1,5 +1,4 @@
 import jax
-from jax.experimental.stax import parallel
 import jax.numpy as np
 from tqdm.auto import tqdm
 

@@ -2,12 +2,8 @@ import jax
 import jax.numpy as np
 import flax.linen as nn
 
-import flow
-import priors
-import made as made_module
-import permutations
-import normalizations
-import utils
+from lbi.models.flows import flow, priors, utils, permutations, normalizations
+import lbi.models.flows.made as made_module
 
 
 def get_loss_fn(flow_fns):
@@ -19,7 +15,9 @@ def get_loss_fn(flow_fns):
         """
         # Do I have to make params into {"params": params}?
         return -flow_fns.apply(params, *args).mean()
+
     return loss_fn
+
 
 def construct_MAF(
     rng: jax.random.PRNGKey,
@@ -72,6 +70,5 @@ def construct_MAF(
         ),
         prior=priors.Normal(dim=input_dim),
     )
-    
-    return maf, get_loss_fn(maf)
 
+    return maf, get_loss_fn(maf)

@@ -49,7 +49,7 @@ def _train_model(
 def _sample_posterior(
     rng,
     model_params,
-    log_pdf,
+    log_prob,
     log_prior,
     X_true,
     init_theta=None,
@@ -61,9 +61,7 @@ def _sample_posterior(
         if len(theta.shape) == 1:
             theta = theta[None, :]
 
-        parallel_log_pdf = jax.vmap(log_pdf.apply, in_axes=(0, None, None))
-
-        log_L = parallel_log_pdf({"params": model_params}, X_true, theta)
+        log_L = log_prob(model_params, X_true, theta)
         log_L = log_L.mean(axis=0)
 
         log_post = -log_L - log_prior(theta)
@@ -90,9 +88,9 @@ def _sample_posterior(
     return mcmc.get_samples(group_by_chain=False).squeeze()
 
 
-def _get_init_theta(model_params, log_pdf, X_true, Theta, num_theta=1):
+def _get_init_theta(model_params, log_prob, X_true, Theta, num_theta=1):
     tiled_X = np.tile(X_true, (Theta.shape[0], 1))
-    lps = log_pdf(model_params, tiled_X, Theta).squeeze()
+    lps = log_prob(model_params, tiled_X, Theta).squeeze()
     init_theta = np.array(Theta[np.argsort(lps)])[:num_theta]
     return init_theta
 
@@ -101,7 +99,7 @@ def _sequential_round(
     rng,
     X_true,
     model_params,
-    log_pdf,
+    log_prob,
     log_prior,
     sample_prior,
     simulate,
@@ -157,7 +155,7 @@ def _sequential_round(
 
     init_theta = get_init_theta(
         model_params.slow if hasattr(model_params, "slow") else model_params,
-        log_pdf,
+        log_prob,
         X_true,
         Theta,
         num_theta=num_chains,
@@ -166,7 +164,7 @@ def _sequential_round(
     Theta_post = _sample_posterior(
         rng,
         model_params.slow if hasattr(model_params, "slow") else model_params,
-        log_pdf,
+        log_prob,
         log_prior,
         X_true,
         init_theta=init_theta,
@@ -181,7 +179,7 @@ def sequential(
     rng,
     X_true,
     model_params,
-    log_pdf,
+    log_prob,
     log_prior,
     sample_prior,
     simulate,
@@ -218,7 +216,7 @@ def sequential(
             rng,
             X_true,
             model_params,
-            log_pdf,
+            log_prob,
             log_prior,
             sample_prior,
             simulate,

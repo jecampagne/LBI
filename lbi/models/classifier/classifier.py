@@ -1,7 +1,6 @@
 import jax
 import jax.numpy as np
 
-# from jax.experimental import stax
 import flax.linen as nn
 
 

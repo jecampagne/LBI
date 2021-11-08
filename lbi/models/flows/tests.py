@@ -128,7 +128,6 @@ def two_moons(seed=42):
     }
 
     context_embedding = MLP(**context_embedding_kwargs)
-
     maf, loss_fn = construct_MAF(context_embedding=context_embedding, **maf_kwargs)
 
     optimizer = optax.adam(learning_rate=learning_rate)

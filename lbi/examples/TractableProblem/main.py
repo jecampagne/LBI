@@ -1,3 +1,4 @@
+import functools
 import jax
 import jax.numpy as np
 import numpy as onp
@@ -7,8 +8,9 @@ from lbi.prior import SmoothedBoxPrior
 from lbi.dataset import getDataLoaderBuilder
 from lbi.diagnostics import MMD, ROC_AUC, LR_ROC_AUC
 from lbi.sequential.sequential import sequential
+from lbi.models import parallel_init_fn
 from lbi.models.steps import get_train_step, get_valid_step
-from lbi.models.flows import parallel_init_fn, construct_MAF
+from lbi.models.flows import construct_MAF
 from lbi.models.MLP import MLP
 from lbi.models.classifier import InitializeClassifier
 from lbi.trainer import getTrainer
@@ -20,14 +22,14 @@ import matplotlib.pyplot as plt
 import datetime
 
 # --------------------------
-model_type = "classifier"  # "classifier" or "flow"
+model_type = "flow"  # "classifier" or "flow"
 
 seed = 1234
 rng, model_rng, hmc_rng = jax.random.split(jax.random.PRNGKey(seed), num=3)
 
 # Model hyperparameters
 ensemble_size = 15
-num_layers = 1
+num_layers = 2
 hidden_dim = 32
 
 # Optimizer hyperparmeters
@@ -39,13 +41,13 @@ slow_step_size = 0.5
 
 # Train hyperparameters
 nsteps = 250000
-patience = 150
+patience = 15
 eval_interval = 100
 
 # Sequential hyperparameters
-num_rounds = 5
-num_initial_samples = 10000
-num_samples_per_round = 1000
+num_rounds = 3
+num_initial_samples = 1000
+num_samples_per_round = 100
 num_chains = 10
 
 # --------------------------
@@ -98,7 +100,7 @@ optimizer = optax.chain(
 # --------------------------
 # Create model
 if model_type == "classifier":
-    loss, log_pdf, ensemble_params, opt_state_ensemble = InitializeClassifier(
+    loss_fn, log_prob, params, opt_state = InitializeClassifier(
         model_rng=model_rng,
         optimizer=optimizer,
         obs_dim=obs_dim,
@@ -114,33 +116,36 @@ else:
         "hidden_dim": hidden_dim,
         "context_dim": theta_dim,
         "n_layers": num_layers,
-        "permutation": "Reverse",
+        "permutation": "Conv1x1",
         "normalization": None,
         "made_activation": "gelu",
     }
     context_embedding_kwargs = {
-        "output_dim": 4,
-        "hidden_dim": 8,
-        "num_layers": 1,
+        "output_dim": theta_dim*2,
+        "hidden_dim": theta_dim*2,
+        "num_layers": 2,
         "act": "leaky_relu",
     }
+    
     context_embedding = MLP(**context_embedding_kwargs)
-    maf = construct_MAF(context_embedding=context_embedding, **maf_kwargs)
+    model, loss_fn = construct_MAF(context_embedding=context_embedding, **maf_kwargs)
 
-    parallel_init_fn(
-        rng,
-        flow_fns=maf,
-        optimizer=optimizer,
-        input_shape=input_shape,
-        context_shape=context_shape,
-    )
+params, opt_state = parallel_init_fn(
+    jax.random.split(rng, ensemble_size),
+    model,
+    optimizer,
+    (maf_kwargs["input_dim"],),
+    (maf_kwargs["context_dim"],),
+)
 
 
+log_prob = functools.partial(model.apply, method=model.log_prob)
+parallel_log_prob = jax.vmap(log_prob, in_axes=(0, None, None))
 # --------------------------
 # Create trainer
 
-train_step = get_train_step(loss, optimizer)
-valid_step = get_valid_step({"valid_loss": loss})
+train_step = get_train_step(loss_fn, optimizer)
+valid_step = get_valid_step({"valid_loss": loss_fn})
 
 trainer = getTrainer(
     train_step,
@@ -154,15 +159,15 @@ trainer = getTrainer(
 )
 
 # Train model sequentially
-ensemble_params, Theta_post = sequential(
+params, Theta_post = sequential(
     rng,
     X_true,
-    ensemble_params,
-    log_pdf,
+    params,
+    parallel_log_prob,
     log_prior,
     sample_prior,
     simulate,
-    opt_state_ensemble,
+    opt_state,
     trainer,
     data_loader_builder,
     num_rounds=num_rounds,
@@ -178,9 +183,7 @@ def potential_fn(theta):
     if len(theta.shape) == 1:
         theta = theta[None, :]
 
-    parallel_log_pdf = jax.vmap(log_pdf.apply, in_axes=(0, None, None))
-
-    log_L = parallel_log_pdf({"params": ensemble_params}, X_true, theta)
+    log_L = parallel_log_prob(params, X_true, theta)
     log_L = log_L.mean(axis=0)
 
     log_post = -log_L - log_prior(theta)
@@ -230,7 +233,7 @@ else:
 #     fpr, tpr, auc = LR_ROC_AUC(
 #         rng,
 #         ensemble_params,
-#         log_pdf,
+#         log_prob,
 #         data,
 #         theta_samples,
 #         data_split=0.05,
