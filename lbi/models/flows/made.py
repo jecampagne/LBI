@@ -114,6 +114,7 @@ class MADE(nn.Module):
     hidden_dim: int = 64
     context_dim: int = 0
     output_dim_multiplier: int = 2
+    act: str = "celu"
 
     def setup(self):
         self.transform = MaskedTransform(
@@ -122,6 +123,7 @@ class MADE(nn.Module):
             hidden_dim=self.hidden_dim,
             num_hidden=1,
             output_dim_multiplier=self.output_dim_multiplier,
+            act=self.act,
         )
 
     @compact

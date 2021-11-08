@@ -19,6 +19,7 @@ def construct_MAF(
     context_embedding: nn.Module = None,
     permutation: str = "Reverse",
     normalization: str = None,
+    made_activation: str = "celu",
 ):
     """
     A sequence of affine transformations with a masked affine transform.
@@ -34,6 +35,7 @@ def construct_MAF(
         "hidden_dim": hidden_dim,
         "context_dim": context_dim,
         "output_dim_multiplier": 2,
+        "act": made_activation,
     }
 
     permutation = getattr(permutations, permutation)
@@ -86,18 +88,15 @@ if __name__ == "__main__":
         params = maf.init(rng, dummy_input, context=dummy_context)  # do shape inference
         return params
 
-
     seed = 1234
     rng = jax.random.PRNGKey(seed)
-    
+
     learning_rate = 1e-3
     batch_size = 128
     nsteps = 40
 
     n_layers = 1
     hidden_dim = 128
-
-
 
     # --------------------
     # Create the dataset
@@ -129,15 +128,15 @@ if __name__ == "__main__":
         "n_layers": n_layers,
         "permutation": "Reverse",
         "normalization": None,
+        "made_activation": "gelu",
     }
-    # context embedding hyperparams
+    
     context_embedding_kwargs = {
         "output_dim": 4,
         "hidden_dim": 8,
         "num_layers": 1,
         "act": "leaky_relu",
     }
-
 
     context_embedding = MLP(**context_embedding_kwargs)
     maf = construct_MAF(context_embedding=context_embedding, **maf_kwargs)
