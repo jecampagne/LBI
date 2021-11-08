@@ -7,9 +7,9 @@ from lbi.prior import SmoothedBoxPrior
 from lbi.dataset import getDataLoaderBuilder
 from lbi.diagnostics import MMD, ROC_AUC, LR_ROC_AUC
 from lbi.sequential.sequential import sequential
-from lbi.models.base import get_train_step, get_valid_step
-
-from lbi.models.flows import InitializeFlow
+from lbi.models.steps import get_train_step, get_valid_step
+from lbi.models.flows import parallel_init_fn, construct_MAF
+from lbi.models.MLP import MLP
 from lbi.models.classifier import InitializeClassifier
 from lbi.trainer import getTrainer
 from lbi.sampler import hmc
@@ -108,14 +108,31 @@ if model_type == "classifier":
         hidden_dim=hidden_dim,
     )
 else:
-    loss, (log_pdf, sample), ensemble_params, opt_state_ensemble = InitializeFlow(
-        model_rng=model_rng,
+    maf_kwargs = {
+        "rng": rng,
+        "input_dim": obs_dim,
+        "hidden_dim": hidden_dim,
+        "context_dim": theta_dim,
+        "n_layers": num_layers,
+        "permutation": "Reverse",
+        "normalization": None,
+        "made_activation": "gelu",
+    }
+    context_embedding_kwargs = {
+        "output_dim": 4,
+        "hidden_dim": 8,
+        "num_layers": 1,
+        "act": "leaky_relu",
+    }
+    context_embedding = MLP(**context_embedding_kwargs)
+    maf = construct_MAF(context_embedding=context_embedding, **maf_kwargs)
+
+    parallel_init_fn(
+        rng,
+        flow_fns=maf,
         optimizer=optimizer,
-        obs_dim=obs_dim,
-        theta_dim=theta_dim,
-        ensemble_size=ensemble_size,
-        num_layers=num_layers,
-        hidden_dim=hidden_dim,
+        input_shape=input_shape,
+        context_shape=context_shape,
     )
 
 

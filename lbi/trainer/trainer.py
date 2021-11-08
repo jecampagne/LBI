@@ -21,8 +21,8 @@ def getTrainer(
     if patience is None:
         patience = np.inf
 
-    parallel_train_step = jax.vmap(train_step, in_axes=(0, 0, None))
-    parallel_valid_step = jax.vmap(valid_step, in_axes=(0, None))
+    # parallel_train_step = jax.vmap(train_step, in_axes=(0, 0, None))
+    # parallel_valid_step = jax.vmap(valid_step, in_axes=(0, None))
 
     def trainer(
         params_vector,
@@ -40,7 +40,7 @@ def getTrainer(
             for _step_num in iterator:
                 batch = next(iter(train_dataloader))
                 batch = [np.array(a) for a in batch]  # batch contains x, context
-                nll_vector, params_vector, opt_state_vector = parallel_train_step(
+                nll_vector, params_vector, opt_state_vector = train_step(
                     params_vector,
                     opt_state_vector,
                     batch,
@@ -60,7 +60,7 @@ def getTrainer(
                     batch = [np.array(a) for a in next(iter(valid_dataloader))]
 
                     # assumes first valid metric is the validation loss
-                    valid_metrics = parallel_valid_step(params_vector, batch)
+                    valid_metrics = valid_step(params_vector, batch)
                     mean_val_loss = np.mean(valid_metrics["valid_loss"])
                     if mean_val_loss < best_valid_loss:
                         best_valid_loss = mean_val_loss

@@ -10,6 +10,17 @@ import normalizations
 import utils
 
 
+def get_loss_fn(flow_fns):
+    def loss_fn(params, *args):
+        """
+        Negative-log-likelihood loss function.
+
+        *args: inputs, context (optional)
+        """
+        # Do I have to make params into {"params": params}?
+        return -flow_fns.apply(params, *args).mean()
+    return loss_fn
+
 def construct_MAF(
     rng: jax.random.PRNGKey,
     input_dim: int,
@@ -54,11 +65,13 @@ def construct_MAF(
         if normalization is not None:
             transformations.append(normalization(**normalization_kwargs))
 
-    return flow.Flow(
+    maf = flow.Flow(
         transformation=utils.SeriesTransform(
             transformations=transformations,
             context_embedding=context_embedding,
         ),
         prior=priors.Normal(dim=input_dim),
     )
+    
+    return maf, get_loss_fn(maf)
 

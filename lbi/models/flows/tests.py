@@ -1,6 +1,7 @@
+from functools import partial
 import jax
 import jax.numpy as np
-from maf import construct_MAF
+from lbi.models.flows import construct_MAF
 
 
 def check_invertibility(seed=42):
@@ -14,8 +15,8 @@ def check_invertibility(seed=42):
     rng = jax.random.PRNGKey(seed)
 
     sample_input = 10 * (jax.random.uniform(rng, (1, input_dim)) - 0.5)
-    sample_context = 10 * (jax.random.uniform(rng, (1, context_dim)) - 0.5) 
-    
+    sample_context = 10 * (jax.random.uniform(rng, (1, context_dim)) - 0.5)
+
     def init_fn(rng, input_shape, context_shape=None):
         if context_shape is None:
             context_shape = (0,)
@@ -54,7 +55,7 @@ def check_invertibility(seed=42):
     else:
         print("Flow is not invertible")
         print("delta std:", np.std(delta))
-        
+
     print("______________________________________________________")
     print("_____________ Conditonal Two  Moons Test _____________")
     print("______________________________________________________")
@@ -62,9 +63,9 @@ def check_invertibility(seed=42):
 
 def two_moons(seed=42):
     import jax
-    from lbi.models.flows.maf import construct_MAF
+    import functools
+    from lbi.models import get_train_step, get_valid_step, init_fn, parallel_init_fn
     from lbi.models.MLP import MLP
-    from lbi.models.steps import get_train_step
     import optax
     import torch
     from torch.utils.data import DataLoader, TensorDataset
@@ -74,18 +75,6 @@ def two_moons(seed=42):
     from tqdm.auto import tqdm
     import matplotlib.pyplot as plt
 
-    def loss_fn(params, *args):
-        nll = -maf.apply(params, *args).mean()
-        return nll
-
-    def init_fn(rng, input_shape, context_shape=None):
-        if context_shape is None:
-            context_shape = (0,)
-        dummy_input = np.ones((1, *input_shape))
-        dummy_context = np.ones((1, *context_shape))
-        params = maf.init(rng, dummy_input, context=dummy_context)  # do shape inference
-        return params
-
     rng = jax.random.PRNGKey(seed)
 
     learning_rate = 1e-3
@@ -93,7 +82,10 @@ def two_moons(seed=42):
     nsteps = 40
 
     n_layers = 1
-    hidden_dim = 128
+    hidden_dim = 32
+    ensemble_size = 5 
+    # speed of training ensemble depends on the size of:
+    # ensemble, batch, and hidden dim
 
     # --------------------
     # Create the dataset
@@ -127,7 +119,7 @@ def two_moons(seed=42):
         "normalization": None,
         "made_activation": "gelu",
     }
-    
+
     context_embedding_kwargs = {
         "output_dim": 4,
         "hidden_dim": 8,
@@ -136,15 +128,18 @@ def two_moons(seed=42):
     }
 
     context_embedding = MLP(**context_embedding_kwargs)
-    maf = construct_MAF(context_embedding=context_embedding, **maf_kwargs)
 
-    params = init_fn(
-        rng=rng,
-        input_shape=(input_dim,),
-        context_shape=(context_dim,),
-    )
+    maf, loss_fn = construct_MAF(context_embedding=context_embedding, **maf_kwargs)
+
     optimizer = optax.adam(learning_rate=learning_rate)
-    opt_state = optimizer.init(params)
+
+    params, opt_state = parallel_init_fn(
+        jax.random.split(rng, ensemble_size),
+        maf,
+        optimizer,
+        (input_dim,),
+        (context_dim,),
+    )
 
     train_step = get_train_step(loss_fn, optimizer)
 
@@ -154,19 +149,40 @@ def two_moons(seed=42):
             for batch in train_dataloader:
                 batch = [np.array(a) for a in batch]
                 nll, params, opt_state = train_step(params, opt_state, batch)
-            iterator.set_description("nll = {:.3f}".format(nll))
+            iterator.set_description("nll = {:.3f}".format(nll.mean()))
     except KeyboardInterrupt:
         pass
 
     plt.scatter(*X_train.T, color="grey", alpha=0.01, marker=".")
-    samples_0 = maf.apply(
-        params, rng, context=np.zeros((1000, context_dim)), method=maf.sample
+
+    # This is parallel sampling bit is ugly....
+    # Technically not correct bc samples should be rejected 
+    # rather than split evenly. As n_samp->inf this is fine.
+
+    sample_0 = functools.partial(
+        maf.apply,
+        context=np.zeros((1000 // ensemble_size, context_dim)),
+        method=maf.sample,
     )
-    plt.scatter(*samples_0.T, color="red", label="0", marker=".", alpha=0.2)
-    samples_1 = maf.apply(
-        params, rng, context=np.ones((1000, context_dim)), method=maf.sample
+    sample_1 = functools.partial(
+        maf.apply,
+        context=np.ones((1000 // ensemble_size, context_dim)),
+        method=maf.sample,
     )
-    plt.scatter(*samples_1.T, color="blue", label="1", marker=".", alpha=0.2)
+    parallel_sample_0 = jax.vmap(sample_0, in_axes=(0, 0))
+    parallel_sample_1 = jax.vmap(sample_1, in_axes=(0, 0))
+    
+    samples_0 = parallel_sample_0(
+        params,
+        jax.random.split(rng, ensemble_size),
+    )
+    samples_1 = parallel_sample_1(
+        params,
+        jax.random.split(rng, ensemble_size),
+    )
+
+    plt.scatter(*samples_0.T, color="red", alpha=0.1, marker=".", label="0")
+    plt.scatter(*samples_1.T, color="blue", alpha=0.1, marker=".", label="1")
 
     plt.xlim(-1.5, 2.5)
     plt.ylim(-1, 1.5)
@@ -174,7 +190,6 @@ def two_moons(seed=42):
     plt.show()
 
 
-
 if __name__ == "__main__":
-    check_invertibility()
+    # check_invertibility()
     two_moons()

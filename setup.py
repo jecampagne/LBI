@@ -29,7 +29,7 @@ setup_keywords["setup_requires"] = [
 ]
 setup_keywords["install_requires"] = [
     "trax",
-#     "optax",
+    # "optax",  # TODO: Add this back in when it's updated
     "flax",
     "torch",
     "nflows",
@@ -40,7 +40,7 @@ setup_keywords["install_requires"] = [
     "sklearn",
 ]
 setup_keywords["dependency_links"] = [
-    "http://github.com/jtamanas/jax-flows/tarball/master#egg=jax-flows-0.0.dev0"
+    # "https://github.com/deepmind/optax/tarball/master#egg=jax-flows-0.0.dev0"
 ]
 setup_keywords["zip_safe"] = False
 setup_keywords["use_2to3"] = False
