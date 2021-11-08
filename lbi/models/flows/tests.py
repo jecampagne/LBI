@@ -56,6 +56,7 @@ def check_invertibility(seed=42):
         print("delta std:", np.std(delta))
         
     print("______________________________________________________")
+    print("_____________ Conditonal Two  Moons Test _____________")
     print("______________________________________________________")
 
 
