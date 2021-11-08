@@ -1,9 +1,9 @@
 import jax
 import jax.numpy as np
-from maf import MakeMAF
+from maf import construct_MAF
 
 
-def check_invertibility(seed=452):
+def check_invertibility(seed=42):
     """
     Check if flow is invertible.
     """
@@ -24,7 +24,7 @@ def check_invertibility(seed=452):
         params = maf.init(rng, dummy_input, context=dummy_context)
         return params
 
-    maf = MakeMAF(
+    maf = construct_MAF(
         input_dim=input_dim,
         context_dim=context_dim,
         hidden_dim=hidden_dim,
@@ -46,6 +46,7 @@ def check_invertibility(seed=452):
     )[0]
 
     delta = sample_input - sample_input_back
+    print("delta", delta)
 
     if np.allclose(sample_input, sample_input_back):
         print("Flow is invertible")

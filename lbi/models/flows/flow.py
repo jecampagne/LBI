@@ -1,4 +1,4 @@
-import jax
+import jax.numpy as np
 import flax.linen as nn
 from typing import Sequence
 
@@ -52,3 +52,6 @@ class Flow(nn.Module):
             prior_samples, context=context
         )
         return x, prior_log_prob + log_det_jacobian
+
+    def loss(self, x, context=None):
+        return -np.mean(self.log_prob(x, context=context), axis=1)

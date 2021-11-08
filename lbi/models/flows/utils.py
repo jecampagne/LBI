@@ -30,6 +30,7 @@ class SeriesTransform(nn.Module):
 
         for transformation in self.transformations:
             outputs, log_det_J = transformation(outputs, context)
+            print(transformation.__class__.__name__, np.sum(outputs**2))
             log_det_jacobian += log_det_J
         return outputs, log_det_jacobian
 
@@ -44,6 +45,7 @@ class SeriesTransform(nn.Module):
         log_det_jacobian = np.zeros((z.shape[0], 1))
         
         for transformation in self.transformations[::-1]:
+            print(outputs)
             outputs, log_det_J = transformation.inverse(outputs, context)
             log_det_jacobian += log_det_J
         return outputs, log_det_jacobian

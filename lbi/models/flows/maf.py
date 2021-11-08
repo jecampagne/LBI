@@ -14,7 +14,7 @@ from typing import Any
 Distribution = Any
 
 
-def MakeMAF(
+def construct_MAF(
     input_dim: int,
     hidden_dim: int = 64,
     context_dim: int = 0,
@@ -42,10 +42,10 @@ def MakeMAF(
 
     reverse_kwargs = {"input_dim": input_dim}
     random_kwargs = {"input_dim": input_dim, "rng": jax.random.PRNGKey(0)}
+    conv_kwargs = {"input_dim": input_dim, "rng": jax.random.PRNGKey(0)}
     actnorm_kwargs = {}
 
     reverse = permutations.Reverse
-    random = permutations.Random
     actnorm = normalization.ActNorm
     conv = permutations.Conv1x1
 
@@ -54,8 +54,8 @@ def MakeMAF(
             (
                 made_module.MADE(**made_kwargs),
                 # random(**random_kwargs),
-                reverse(**reverse_kwargs),
                 actnorm(**actnorm_kwargs),
+                conv(**conv_kwargs),
             )
             * n_layers,
             context_embedding=context_embedding,
@@ -67,6 +67,7 @@ def MakeMAF(
 if __name__ == "__main__":
     import jax
     from lbi.models.MLP import MLP
+    from lbi.models.steps import get_train_step
     import optax
     import torch
     from torch.utils.data import DataLoader, TensorDataset
@@ -76,8 +77,8 @@ if __name__ == "__main__":
     from tqdm.auto import tqdm
     import matplotlib.pyplot as plt
 
-    def loss_fn(params, batch):
-        nll = -maf.apply(params, *batch).mean()
+    def loss_fn(params, *args):
+        nll = -maf.apply(params, *args).mean()
         return nll
 
     def init_fn(rng, input_shape, context_shape=None):
@@ -88,14 +89,6 @@ if __name__ == "__main__":
         params = maf.init(rng, dummy_input, context=dummy_context)  # do shape inference
         return params
 
-    def get_train_step(loss_fn, optimizer):
-        @jax.jit
-        def train_step(params, opt_state, batch):
-            loss, grads = jax.value_and_grad(loss_fn)(params, batch)
-            updates, opt_state = optimizer.update(grads, opt_state, params)
-            return loss, optax.apply_updates(params, updates), opt_state
-
-        return train_step
 
     # context embedding hyperparams
     context_embedding_kwargs = {
@@ -111,8 +104,8 @@ if __name__ == "__main__":
     batch_size = 128
     nsteps = 40
 
-    n_layers = 2
-    hidden_dim = 32
+    n_layers = 1
+    hidden_dim = 128
 
     rng = jax.random.PRNGKey(seed)
 
@@ -140,7 +133,7 @@ if __name__ == "__main__":
 
     context_embedding = MLP(**context_embedding_kwargs)
 
-    maf = MakeMAF(
+    maf = construct_MAF(
         input_dim=input_dim,
         context_dim=context_dim,
         hidden_dim=hidden_dim,
