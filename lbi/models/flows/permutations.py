@@ -7,6 +7,7 @@ Array = Any
 
 
 class Reverse(nn.Module):
+    rng: jax.random.PRNGKey
     input_dim: int
 
     def __call__(self, inputs, *args, **kwargs):
@@ -25,7 +26,6 @@ class Random(nn.Module):
     """
     Probably best to use different rng's for each permutation
     """
-
     rng: jax.random.PRNGKey
     input_dim: int
 

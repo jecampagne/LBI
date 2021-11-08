@@ -6,21 +6,19 @@ import flow
 import priors
 import made as made_module
 import permutations
-import normalization
+import normalizations
 import utils
-
-from typing import Any
-
-Distribution = Any
 
 
 def construct_MAF(
+    rng: jax.random.PRNGKey,
     input_dim: int,
     hidden_dim: int = 64,
     context_dim: int = 0,
     n_layers: int = 5,
     context_embedding: nn.Module = None,
-    context_embedding_dim: int = 0,
+    permutation: str = "Reverse",
+    normalization: str = None,
 ):
     """
     A sequence of affine transformations with a masked affine transform.
@@ -28,10 +26,8 @@ def construct_MAF(
     returns init_fun
     """
 
-    if context_embedding is None:
-        context_embedding_dim = context_dim
-    else:
-        context_dim = context_embedding_dim
+    if context_embedding is not None:
+        context_dim = context_embedding.output_dim
 
     made_kwargs = {
         "input_dim": input_dim,
@@ -40,24 +36,25 @@ def construct_MAF(
         "output_dim_multiplier": 2,
     }
 
-    reverse_kwargs = {"input_dim": input_dim}
-    random_kwargs = {"input_dim": input_dim, "rng": jax.random.PRNGKey(0)}
-    conv_kwargs = {"input_dim": input_dim, "rng": jax.random.PRNGKey(0)}
-    actnorm_kwargs = {}
+    permutation = getattr(permutations, permutation)
+    permutation_kwargs = {"input_dim": input_dim, "rng": None}
 
-    reverse = permutations.Reverse
-    actnorm = normalization.ActNorm
-    conv = permutations.Conv1x1
+    if normalization is not None:
+        normalization = getattr(normalizations, normalization)
+    normalization_kwargs = {}
+
+    transformations = []
+    for rng in jax.random.split(rng, n_layers):
+        permutation_kwargs["rng"] = rng
+
+        transformations.append(made_module.MADE(**made_kwargs))
+        transformations.append(permutation(**permutation_kwargs))
+        if normalization is not None:
+            transformations.append(normalization(**normalization_kwargs))
 
     return flow.Flow(
         transformation=utils.SeriesTransform(
-            (
-                made_module.MADE(**made_kwargs),
-                # random(**random_kwargs),
-                actnorm(**actnorm_kwargs),
-                conv(**conv_kwargs),
-            )
-            * n_layers,
+            transformations=transformations,
             context_embedding=context_embedding,
         ),
         prior=priors.Normal(dim=input_dim),
@@ -90,16 +87,9 @@ if __name__ == "__main__":
         return params
 
 
-    # context embedding hyperparams
-    context_embedding_kwargs = {
-        "output_dim": 4,
-        "hidden_dim": 8,
-        "num_layers": 1,
-        "act": "leaky_relu",
-    }
-
     seed = 1234
-
+    rng = jax.random.PRNGKey(seed)
+    
     learning_rate = 1e-3
     batch_size = 128
     nsteps = 40
@@ -107,7 +97,7 @@ if __name__ == "__main__":
     n_layers = 1
     hidden_dim = 128
 
-    rng = jax.random.PRNGKey(seed)
+
 
     # --------------------
     # Create the dataset
@@ -131,16 +121,26 @@ if __name__ == "__main__":
     # Create the model
     # --------------------
 
-    context_embedding = MLP(**context_embedding_kwargs)
+    maf_kwargs = {
+        "rng": rng,
+        "input_dim": input_dim,
+        "hidden_dim": hidden_dim,
+        "context_dim": context_dim,
+        "n_layers": n_layers,
+        "permutation": "Reverse",
+        "normalization": None,
+    }
+    # context embedding hyperparams
+    context_embedding_kwargs = {
+        "output_dim": 4,
+        "hidden_dim": 8,
+        "num_layers": 1,
+        "act": "leaky_relu",
+    }
 
-    maf = construct_MAF(
-        input_dim=input_dim,
-        context_dim=context_dim,
-        hidden_dim=hidden_dim,
-        n_layers=n_layers,
-        context_embedding=context_embedding,
-        context_embedding_dim=context_embedding_kwargs["output_dim"],
-    )
+
+    context_embedding = MLP(**context_embedding_kwargs)
+    maf = construct_MAF(context_embedding=context_embedding, **maf_kwargs)
 
     params = init_fn(
         rng=rng,
