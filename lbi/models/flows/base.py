@@ -2,7 +2,6 @@ import jax
 import jax.numpy as np
 import optax
 from functools import partial
-from .maf import MaskedAffineFlow
 
 
 def init_fn(input_shape, rng, flow_fns, optimizer):
