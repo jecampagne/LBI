@@ -43,6 +43,7 @@ def pipeline(
     # Sequential hyperparameters
     num_rounds=3,
     num_initial_samples=1000,
+    num_warmup_per_round=100,
     num_samples_per_round=100,
     num_chains=10,
     logger=None,

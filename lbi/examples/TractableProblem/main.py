@@ -1,29 +1,16 @@
-import functools
 import jax
 import jax.numpy as np
 import numpy as onp
-import optax
 from trax.jaxboard import SummaryWriter
-from lbi.models.classifier.classifier import Classifier
 from lbi.pipeline.base import pipeline
 from lbi.prior import SmoothedBoxPrior
-from lbi.dataset import getDataLoaderBuilder
 
 # from lbi.diagnostics import MMD, ROC_AUC, LR_ROC_AUC
-from lbi.sequential.sequential import sequential
-from lbi.models import parallel_init_fn
-from lbi.models.steps import get_train_step, get_valid_step
-from lbi.models.flows import construct_MAF
-from lbi.models.MLP import MLP
-from lbi.models.classifier import construct_Classifier
-from lbi.models.classifier.classifier import get_loss_fn
-from lbi.trainer import getTrainer
 from lbi.sampler import hmc
 from tractable_problem_functions import get_simulator, log_likelihood
 
 import corner
 import matplotlib.pyplot as plt
-import datetime
 
 # --------------------------
 
