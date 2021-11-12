@@ -13,7 +13,8 @@ from lbi.models import parallel_init_fn
 from lbi.models.steps import get_train_step, get_valid_step
 from lbi.models.flows import construct_MAF
 from lbi.models.MLP import MLP
-# from lbi.models.classifier import InitializeClassifier
+from lbi.models.classifier import construct_Classifier
+from lbi.models.classifier.classifier import get_loss_fn
 from lbi.trainer import getTrainer
 from lbi.sampler import hmc
 from tractable_problem_functions import get_simulator, log_likelihood
@@ -101,8 +102,6 @@ optimizer = optax.chain(
 # --------------------------
 # Create model
 if model_type == "classifier":
-    from lbi.models.classifier import construct_Classifier
-    from lbi.models.classifier.classifier import get_loss_fn
     
     classifier_kwargs = {
         # "output_dim": 1,
@@ -112,8 +111,6 @@ if model_type == "classifier":
         "act": "leaky_relu",
     }
     model, loss_fn = construct_Classifier(**classifier_kwargs)
-    # model = MLP(**classifier_kwargs)
-    # loss_fn = get_loss_fn(model)
 else:
     maf_kwargs = {
         "rng": rng,
@@ -162,18 +159,6 @@ trainer = getTrainer(
     valid_kwargs=None,
 )
 
-
-def potential_fn(theta):
-    if len(theta.shape) == 1:
-        theta = theta[None, :]
-
-    log_L = parallel_log_prob(params, X_true, theta)
-    log_L = log_L.mean(axis=0)
-
-    log_post = -log_L - log_prior(theta)
-    return log_post.sum()
-
-from IPython import embed; embed()
 
 # Train model sequentially
 params, Theta_post = sequential(
