@@ -5,7 +5,7 @@ import optax
 import sklearn.metrics as skm
 import torch
 from lbi.models import get_train_step, get_valid_step
-from lbi.models.classifier import InitializeClassifier
+# from lbi.models.classifier import InitializeClassifier
 from lbi.trainer import getTrainer
 from sklearn.model_selection import train_test_split
 

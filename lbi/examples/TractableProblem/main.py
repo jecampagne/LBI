@@ -4,15 +4,16 @@ import jax.numpy as np
 import numpy as onp
 import optax
 from trax.jaxboard import SummaryWriter
+from lbi.models.classifier.classifier import Classifier
 from lbi.prior import SmoothedBoxPrior
 from lbi.dataset import getDataLoaderBuilder
-from lbi.diagnostics import MMD, ROC_AUC, LR_ROC_AUC
+# from lbi.diagnostics import MMD, ROC_AUC, LR_ROC_AUC
 from lbi.sequential.sequential import sequential
 from lbi.models import parallel_init_fn
 from lbi.models.steps import get_train_step, get_valid_step
 from lbi.models.flows import construct_MAF
 from lbi.models.MLP import MLP
-from lbi.models.classifier import InitializeClassifier
+# from lbi.models.classifier import InitializeClassifier
 from lbi.trainer import getTrainer
 from lbi.sampler import hmc
 from tractable_problem_functions import get_simulator, log_likelihood
@@ -22,7 +23,7 @@ import matplotlib.pyplot as plt
 import datetime
 
 # --------------------------
-model_type = "flow"  # "classifier" or "flow"
+model_type = "classifier"  # "classifier" or "flow"
 
 seed = 1234
 rng, model_rng, hmc_rng = jax.random.split(jax.random.PRNGKey(seed), num=3)
@@ -100,15 +101,19 @@ optimizer = optax.chain(
 # --------------------------
 # Create model
 if model_type == "classifier":
-    loss_fn, log_prob, params, opt_state = InitializeClassifier(
-        model_rng=model_rng,
-        optimizer=optimizer,
-        obs_dim=obs_dim,
-        theta_dim=theta_dim,
-        ensemble_size=ensemble_size,
-        num_layers=num_layers,
-        hidden_dim=hidden_dim,
-    )
+    from lbi.models.classifier import construct_Classifier
+    from lbi.models.classifier.classifier import get_loss_fn
+    
+    classifier_kwargs = {
+        # "output_dim": 1,
+        "hidden_dim": (obs_dim + theta_dim)*2,
+        "num_layers": 2,
+        "use_residual": False,
+        "act": "leaky_relu",
+    }
+    model, loss_fn = construct_Classifier(**classifier_kwargs)
+    # model = MLP(**classifier_kwargs)
+    # loss_fn = get_loss_fn(model)
 else:
     maf_kwargs = {
         "rng": rng,
@@ -134,13 +139,12 @@ params, opt_state = parallel_init_fn(
     jax.random.split(rng, ensemble_size),
     model,
     optimizer,
-    (maf_kwargs["input_dim"],),
-    (maf_kwargs["context_dim"],),
+    (obs_dim,),
+    (theta_dim,),
 )
 
-
-log_prob = functools.partial(model.apply, method=model.log_prob)
-parallel_log_prob = jax.vmap(log_prob, in_axes=(0, None, None))
+# the models' __call__ are their log_prob fns
+parallel_log_prob = jax.vmap(model.apply, in_axes=(0, None, None))
 # --------------------------
 # Create trainer
 
@@ -157,6 +161,19 @@ trainer = getTrainer(
     train_kwargs=None,
     valid_kwargs=None,
 )
+
+
+def potential_fn(theta):
+    if len(theta.shape) == 1:
+        theta = theta[None, :]
+
+    log_L = parallel_log_prob(params, X_true, theta)
+    log_L = log_L.mean(axis=0)
+
+    log_post = -log_L - log_prior(theta)
+    return log_post.sum()
+
+from IPython import embed; embed()
 
 # Train model sequentially
 params, Theta_post = sequential(

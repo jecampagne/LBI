@@ -32,8 +32,6 @@ def construct_MAF(
 ):
     """
     A sequence of affine transformations with a masked affine transform.
-
-    returns init_fun
     """
 
     if context_embedding is not None:

@@ -1,1 +1,1 @@
-from .base import InitializeClassifier
+from .classifier import construct_Classifier

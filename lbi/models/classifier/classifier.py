@@ -4,6 +4,26 @@ import jax.numpy as np
 import flax.linen as nn
 
 
+def get_loss_fn(classifier_fns):
+    def binary_cross_entropy(params, inputs, context, label):
+        """binary cross entropy with logits
+        taken from jaxchem
+        """
+        label = label.squeeze()
+        # log ratio is the logit of the discriminator
+        l_d = classifier_fns.apply(params, inputs, context).squeeze()
+        max_val = np.clip(-l_d, 0, None)
+        L = (
+            l_d
+            - l_d * label
+            + max_val
+            + np.log(np.exp(-max_val) + np.exp((-l_d - max_val)))
+        )
+        return np.mean(L)
+
+    return binary_cross_entropy
+
+
 class ResidualBlock(nn.Module):
     hidden_dim: int
     act: str = "celu"
@@ -17,7 +37,7 @@ class ResidualBlock(nn.Module):
 
 
 class Classifier(nn.Module):
-    # TODO: replace with MLP 
+    # TODO: replace with MLP
     num_layers: 5
     hidden_dim: 128
     use_residual: bool = False
@@ -34,12 +54,16 @@ class Classifier(nn.Module):
                 x = getattr(nn, self.act)(x)
         return nn.Dense(1)(x)
 
+    def log_prob(self, *args):
+        return self(self, *args)
 
-def init_fn(input_shape, rng, classifier_fns, opt_init):
-    dummy_input = np.ones((1, *input_shape))
-    params = classifier_fns.init(rng, dummy_input)["params"]
-    opt_state = optimizer.init(params)
-    return params, opt_state
+
+def construct_Classifier(num_layers=5, hidden_dim=128, use_residual=False, act="celu"):
+    model = Classifier(
+        num_layers=num_layers, hidden_dim=hidden_dim, use_residual=use_residual, act=act
+    )
+
+    return model, get_loss_fn(model)
 
 
 if __name__ == "__main__":
@@ -161,6 +185,6 @@ if __name__ == "__main__":
             ).flatten(),
         )
     )
-    
-    # fun fact: the residual network has slightly better 
+
+    # fun fact: the residual network has slightly better
     # performance than the vanilla network on the test set
