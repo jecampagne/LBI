@@ -13,6 +13,7 @@ def hmc(
     num_warmup=100,
     num_samples=50,
     num_chains=1,
+    extra_fields=(),
     chain_method="vectorized",
 ):
 
@@ -33,5 +34,5 @@ def hmc(
     )
 
     # TODO: make sure x0 is being used in posterior (because it's not being used in run)
-    mcmc.run(hmc_rng, init_params=init_theta)
+    mcmc.run(hmc_rng, init_params=init_theta, extra_fields=extra_fields)
     return mcmc

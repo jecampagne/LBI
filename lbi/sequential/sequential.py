@@ -210,6 +210,8 @@ def sequential(
         Theta_New = _sample_theta(rng, sample_prior, num_initial_samples)
     else:
         Theta_New = Theta
+        
+        
     for i in range(num_rounds):
         print(f"STARTING ROUND {i+1}")
         model_params, X, Theta, Theta_New = _sequential_round(
