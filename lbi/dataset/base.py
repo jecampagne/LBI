@@ -10,7 +10,7 @@ class BaseDataset(torch.utils.data.Dataset):
     """
 
     def __init__(self, X, Theta, **kwargs):
-        super(BaseDataset, self).__init__(**kwargs)
+        super(BaseDataset, self).__init__()
         assert (
             X.shape[0] == Theta.shape[0]
         ), "X and Theta must have the same number of rows"
@@ -40,7 +40,7 @@ class GaussianNoiseDataset(BaseDataset):
     """
 
     def __init__(
-        self, X, Theta, sigma, scale_X=None, inverse_scale_X=None, **kwargs
+        self, X, Theta, sigma=None, scale_X=None, inverse_scale_X=None, **kwargs
     ):
         super(GaussianNoiseDataset, self).__init__(X, Theta, **kwargs)
 
@@ -48,7 +48,9 @@ class GaussianNoiseDataset(BaseDataset):
             scale_X = lambda x: x
         if inverse_scale_X is None:
             inverse_scale_X = lambda x: x
-            
+        
+        assert sigma is not None, "sigma must be specified"
+        
         self.X = X
         self.Theta = Theta
         self.sigma = torch.tensor(onp.array(sigma))
