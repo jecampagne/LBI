@@ -39,7 +39,10 @@ def pipeline(
     batch_size=32,
     train_split=0.8,
     num_workers=0,
+    sigma=None,
     add_noise=False,
+    scale_X=None,
+    inverse_scale_X=None,
     # Sequential hyperparameters
     num_rounds=3,
     num_initial_samples=1000,
@@ -63,6 +66,7 @@ def pipeline(
         batch_size=batch_size,
         train_split=train_split,
         num_workers=num_workers,
+        sigma=sigma,
         add_noise=add_noise,
     )
     # TODO: Package model, optimizer, trainer initialization into a function

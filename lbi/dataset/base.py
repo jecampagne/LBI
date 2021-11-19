@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as np
+import numpy as onp
 import torch
 
 
@@ -38,24 +39,29 @@ class GaussianNoiseDataset(BaseDataset):
             Make sure to transform sigma accordingly
     """
 
-    def __init__(self, rng, X, Theta, sigma, logged_X_idx=None, **kwargs):
+    def __init__(
+        self, X, Theta, sigma, scale_X=None, inverse_scale_X=None, **kwargs
+    ):
         super(GaussianNoiseDataset, self).__init__(X, Theta, **kwargs)
-        if logged_X_idx is None:
-            logged_X_idx = np.zeros(X.shape[0])
 
-        self.rng = rng
-        self.sigma = sigma
-        self.logged_X_idx = logged_X_idx
+        if scale_X is None:
+            scale_X = lambda x: x
+        if inverse_scale_X is None:
+            inverse_scale_X = lambda x: x
+            
+        self.X = X
+        self.Theta = Theta
+        self.sigma = torch.tensor(onp.array(sigma))
+        self.scale_X = scale_X
+        self.inverse_scale_X = inverse_scale_X
 
     def __getitem__(self, index):
         x = self.X[index]
-        # exponentiate the logged data
-        x[self.logged_X_idx] = np.exp(x[self.logged_X_idx])
-        # add noise
-        x = x + self.sigma * jax.random.normal(key=self.rng, shape=x.shape)
-        # log back
-        x[self.logged_X_idx] = np.log(x[self.logged_X_idx])
-
         theta = self.Theta[index]
-        return x, theta
 
+        # transform to data space, add gaussian noise, transform back
+        x = self.inverse_scale_X(x)
+        x = x + self.sigma * torch.randn_like(x)
+        x = self.scale_X(x)
+
+        return x, theta
