@@ -43,6 +43,7 @@ def pipeline(
     add_noise=False,
     scale_X=None,
     inverse_scale_X=None,
+    scale_Theta=None,
     # Sequential hyperparameters
     num_rounds=3,
     num_initial_samples=1000,
@@ -68,6 +69,9 @@ def pipeline(
         num_workers=num_workers,
         sigma=sigma,
         add_noise=add_noise,
+        scale_X=scale_X,
+        inverse_scale_X=inverse_scale_X,
+        scale_Theta=scale_Theta,
     )
     # TODO: Package model, optimizer, trainer initialization into a function
 
@@ -91,10 +95,10 @@ def pipeline(
 
         classifier_kwargs = {
             # "output_dim": 1,
-            "hidden_dim": (obs_dim + theta_dim) * 2,
-            "num_layers": 2,
+            "hidden_dim": hidden_dim,
+            "num_layers": num_layers,
             "use_residual": False,
-            "act": "leaky_relu",
+            "act": "gelu",
         }
         model, loss_fn = construct_Classifier(**classifier_kwargs)
     else:
