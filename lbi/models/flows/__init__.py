@@ -1,2 +1,1 @@
-from .maf import MaskedAffineFlow
-from .base import InitializeFlow
+from .maf import construct_MAF
