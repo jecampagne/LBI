@@ -195,7 +195,6 @@ def sequential(
     num_warmup_per_round=None,
     Theta=None,
     X=None,
-    normalize=None,
     logger=None,
 ):
     if num_warmup_per_round is None:

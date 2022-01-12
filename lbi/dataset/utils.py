@@ -11,8 +11,6 @@ def getDataLoaderBuilder(
     train_split=0.9,
     num_workers=0,
     add_noise=True,
-    scale_X=None,
-    inverse_scale_X=None,
     **kwargs
 ):
     """
@@ -47,15 +45,11 @@ def getDataLoaderBuilder(
         trainDataset = DSet(
             train_X,
             train_Theta,
-            scale_X=scale_X,
-            inverse_scale_X=inverse_scale_X,
             **kwargs
         )
         validDataset = DSet(
             valid_X,
             valid_Theta,
-            scale_X=scale_X,
-            inverse_scale_X=inverse_scale_X,
             **kwargs
         )
 

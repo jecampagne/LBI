@@ -4,14 +4,14 @@ import jax.numpy as np
 import flax.linen as nn
 
 
-def get_loss_fn(classifier_fns):
+def get_loss_fn(log_prob):
     def binary_cross_entropy(params, inputs, context, label):
         """binary cross entropy with logits
         taken from jaxchem
         """
         label = label.squeeze()
         # log ratio is the logit of the discriminator
-        l_d = classifier_fns.apply(params, inputs, context).squeeze()
+        l_d = log_prob(params, inputs, context).squeeze()
         max_val = np.clip(-l_d, 0, None)
         L = (
             l_d
@@ -58,12 +58,37 @@ class Classifier(nn.Module):
         return self(self, *args)
 
 
-def construct_Classifier(num_layers=5, hidden_dim=128, use_residual=False, act="celu"):
+def construct_Classifier(
+    num_layers=5,
+    hidden_dim=128,
+    use_residual=False,
+    act="celu",
+    scale_X=None,
+    scale_Theta=None,
+):
+    if scale_X is None:
+        scale_X = lambda x: x
+    if scale_Theta is None:
+        scale_Theta = lambda x: x
+        
     model = Classifier(
         num_layers=num_layers, hidden_dim=hidden_dim, use_residual=use_residual, act=act
     )
 
-    return model, get_loss_fn(model)
+    def log_prob_fn(params, X, Theta):
+        # print("X shape: ", X.shape)
+        # print("Theta shape: ", Theta.shape)
+        
+        scaled_X = scale_X(X) if scale_X is not None else X
+        scaled_Theta = scale_Theta(Theta) if scale_Theta is not None else Theta
+        
+        # print("scaled_X shape: ", scaled_X.shape)
+        # print("scaled_Theta shape: ", scaled_Theta.shape)
+        
+        # the models' __call__ are their log_prob fns
+        return model.apply(params, scaled_X, scaled_Theta)
+
+    return model, log_prob_fn, get_loss_fn(log_prob_fn)
 
 
 if __name__ == "__main__":

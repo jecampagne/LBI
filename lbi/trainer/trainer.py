@@ -37,8 +37,9 @@ def getTrainer(
         round_patience = patience
         try:
             for _step_num in iterator:
-                batch = next(iter(train_dataloader))
-                batch = [np.array(a) for a in batch]  # batch contains x, context
+                _batch = next(iter(train_dataloader))
+                batch = [np.array(a) for a in _batch]  #  contains x, theta
+                
                 nll_vector, params_vector, opt_state_vector = train_step(
                     params_vector,
                     opt_state_vector,
@@ -46,12 +47,12 @@ def getTrainer(
                 )
 
                 if np.any(np.isnan(nll_vector)):
-                    print("We've hit nan-ville. Stopping early.")
+                    print("We've hit nan-ville in training. Stopping early.")
                     break
 
                 if hasattr(logger, "scalar"):
                     logger.scalar(
-                        "train loss", nll_vector, step=(num_round * nsteps) + _step_num
+                        "mean train loss", np.mean(nll_vector), step=(num_round * nsteps) + _step_num
                     )
 
                 if _step_num % eval_interval == 0 and valid_step is not None:
@@ -65,14 +66,14 @@ def getTrainer(
                         best_valid_loss = mean_val_loss
                         best_params = params_vector  # TODO: copy just to be safe
                     elif np.isnan(mean_val_loss) or np.isinf(mean_val_loss):
-                        print("We've hit nan-ville. Stopping early.")
+                        print("We've hit nan-ville in validation. Stopping early.")
                         break
                     else:
                         round_patience -= 1
                     if hasattr(logger, "scalar"):
                         for key, val in valid_metrics.items():
                             logger.scalar(
-                                f"{key}", val, step=(num_round * nsteps) + _step_num
+                                f"mean {key}", np.mean(val), step=(num_round * nsteps) + _step_num
                             )
                     iterator.set_description(f"Mean valid loss: {mean_val_loss:.4f}")
                 if round_patience <= 0:
