@@ -42,7 +42,6 @@ def pipeline(
     sigma=None,
     add_noise=False,
     scale_X=None,
-    inverse_scale_X=None,
     scale_Theta=None,
     # Sequential hyperparameters
     num_rounds=3,
@@ -69,9 +68,6 @@ def pipeline(
         num_workers=num_workers,
         sigma=sigma,
         add_noise=add_noise,
-        scale_X=scale_X,
-        inverse_scale_X=inverse_scale_X,
-        scale_Theta=scale_Theta,
     )
     # TODO: Package model, optimizer, trainer initialization into a function
 
@@ -100,7 +96,11 @@ def pipeline(
             "use_residual": False,
             "act": "gelu",
         }
-        model, loss_fn = construct_Classifier(**classifier_kwargs)
+        model, log_prob, loss_fn = construct_Classifier(
+            scale_X=scale_X, 
+            scale_Theta=scale_Theta, 
+            **classifier_kwargs
+        )
     else:
         maf_kwargs = {
             "rng": rng,
@@ -120,8 +120,11 @@ def pipeline(
         }
 
         context_embedding = MLP(**context_embedding_kwargs)
-        model, loss_fn = construct_MAF(
-            context_embedding=context_embedding, **maf_kwargs
+        model, log_prob, loss_fn = construct_MAF(
+            context_embedding=context_embedding,
+            scale_X=scale_X,
+            scale_Theta=scale_Theta,
+            **maf_kwargs
         )
 
     params, opt_state = parallel_init_fn(
@@ -132,8 +135,7 @@ def pipeline(
         (theta_dim,),
     )
 
-    # the models' __call__ are their log_prob fns
-    parallel_log_prob = jax.vmap(model.apply, in_axes=(0, None, None))
+    parallel_log_prob = jax.vmap(log_prob, in_axes=(0, None, None))
     # --------------------------
     # Create trainer
 
@@ -171,4 +173,4 @@ def pipeline(
         logger=logger,
     )
 
-    return model, params, Theta_post
+    return model, log_prob, params, Theta_post

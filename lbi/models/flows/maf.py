@@ -6,16 +6,14 @@ from lbi.models.flows import flow, priors, utils, permutations, normalizations
 import lbi.models.flows.made as made_module
 
 
-def get_loss_fn(flow_fns):
+def get_loss_fn(log_pdf):
     def loss_fn(params, *args):
         """
         Negative-log-likelihood loss function.
 
         *args: inputs, context (optional)
         """
-        # Do I have to make params into {"params": params}?
-        return -flow_fns.apply(params, *args).mean()
-
+        return -log_pdf(params, *args).mean()
     return loss_fn
 
 
@@ -29,11 +27,17 @@ def construct_MAF(
     permutation: str = "Reverse",
     normalization: str = None,
     made_activation: str = "celu",
+    scale_X=None,
+    scale_Theta=None,
 ):
     """
     A sequence of affine transformations with a masked affine transform.
     """
 
+    if scale_X is None:
+        scale_X = lambda x: x
+    if scale_Theta is None:
+        scale_Theta = lambda x: x
     if context_embedding is not None:
         context_dim = context_embedding.output_dim
 
@@ -69,4 +73,17 @@ def construct_MAF(
         prior=priors.Normal(dim=input_dim),
     )
 
-    return maf, get_loss_fn(maf)
+    def log_prob_fn(params, X, Theta):
+        # print("X shape: ", X.shape)
+        # print("Theta shape: ", Theta.shape)
+        
+        scaled_X = scale_X(X) if scale_X is not None else X
+        scaled_Theta = scale_Theta(Theta) if scale_Theta is not None else Theta
+        
+        
+        # print("scaled_X shape: ", scaled_X.shape)
+        # print("scaled_Theta shape: ", scaled_Theta.shape)
+        # the models' __call__ are their log_prob fns
+        return maf.apply(params, scaled_X, scaled_Theta)
+
+    return maf, log_prob_fn, get_loss_fn(log_prob_fn)
