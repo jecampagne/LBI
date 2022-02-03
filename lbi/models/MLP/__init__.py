@@ -1,1 +1,1 @@
-from .base import MLP
+from .base import MLP, GammaResidualMLP
