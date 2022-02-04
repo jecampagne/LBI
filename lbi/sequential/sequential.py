@@ -140,7 +140,7 @@ def _sequential_round(
     else:
         X = X_New
 
-    import IPython; IPython.embed()
+    # import IPython; IPython.embed()
 
     train_dataloader, valid_dataloader = data_loader_builder(X=X, Theta=Theta)
     model_params = _train_model(
