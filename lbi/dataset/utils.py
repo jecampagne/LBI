@@ -5,6 +5,23 @@ from .collate_fns import FlowCollate_fn, LikelihoodRatioCollate_fn
 from sklearn.model_selection import train_test_split
 
 
+def remove_nans(*arrs):
+    """
+    Remove nans from all arrays while preserving indices
+    """
+    non_nan_idx = onp.ones(arrs[0].shape[0])
+    
+    for arr in arrs:
+        non_nan_idx = onp.logical_and(non_nan_idx, ~onp.isnan(arr).any(axis=1))
+    
+    output_arrs = []
+    for arr in arrs:
+        output_arrs.append(arr[non_nan_idx])
+    return output_arrs
+
+    
+    
+
 def getDataLoaderBuilder(
     sequential_mode,
     batch_size,
@@ -32,6 +49,9 @@ def getDataLoaderBuilder(
         DSet = BaseDataset
 
     def data_loader_builder(X, Theta):
+
+        # remove nans from data (if any)
+        X, Theta = remove_nans(X, Theta)
 
         train_X, valid_X, train_Theta, valid_Theta = train_test_split(
             X, Theta, train_size=train_split
