@@ -4,6 +4,7 @@ import flax.linen as nn
 
 from lbi.models.flows import flow, priors, utils, permutations, normalizations
 import lbi.models.flows.made as made_module
+from lbi.models.flows.transforms import MaskedPiecewiseLinearAutoregressiveTransform
 
 
 def get_loss_fn(log_pdf):
@@ -14,6 +15,7 @@ def get_loss_fn(log_pdf):
         *args: inputs, context (optional)
         """
         return -log_pdf(params, *args).mean()
+
     return loss_fn
 
 
@@ -23,6 +25,7 @@ def construct_MAF(
     hidden_dim: int = 64,
     context_dim: int = 0,
     n_layers: int = 5,
+    n_bins: int = 8,
     context_embedding: nn.Module = None,
     permutation: str = "Reverse",
     normalization: str = None,
@@ -49,6 +52,14 @@ def construct_MAF(
         "act": made_activation,
     }
 
+    piecewise_linear_kwargs = {
+        "input_dim": input_dim,
+        "hidden_dim": hidden_dim,
+        "context_dim": context_dim,
+        "output_dim_multiplier": n_bins,
+        "act": made_activation,
+    }
+
     permutation = getattr(permutations, permutation)
     permutation_kwargs = {"input_dim": input_dim, "rng": None}
 
@@ -60,7 +71,10 @@ def construct_MAF(
     for rng in jax.random.split(rng, n_layers):
         permutation_kwargs["rng"] = rng
 
-        transformations.append(made_module.MADE(**made_kwargs))
+        # transformations.append(made_module.MADE(**made_kwargs))
+        transformations.append(
+            MaskedPiecewiseLinearAutoregressiveTransform(**piecewise_linear_kwargs)
+        )
         transformations.append(permutation(**permutation_kwargs))
         if normalization is not None:
             transformations.append(normalization(**normalization_kwargs))
@@ -76,11 +90,10 @@ def construct_MAF(
     def log_prob_fn(params, X, Theta):
         # print("X shape: ", X.shape)
         # print("Theta shape: ", Theta.shape)
-        
+
         scaled_X = scale_X(X) if scale_X is not None else X
         scaled_Theta = scale_Theta(Theta) if scale_Theta is not None else Theta
-        
-        
+
         # print("scaled_X shape: ", scaled_X.shape)
         # print("scaled_Theta shape: ", scaled_Theta.shape)
         # the models' __call__ are their log_prob fns

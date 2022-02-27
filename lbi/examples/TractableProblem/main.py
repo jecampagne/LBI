@@ -90,7 +90,7 @@ def potential_fn(theta):
     return log_post.sum()
 
 
-num_chains = 32
+num_chains = 8
 init_theta = sample_prior(rng, num_samples=num_chains)
 
 mcmc = hmc(
@@ -102,8 +102,8 @@ mcmc = hmc(
     dense_mass=True,
     step_size=1e0,
     max_tree_depth=6,
-    num_warmup=2000,
-    num_samples=2000,
+    num_warmup=1000,
+    num_samples=1000,
     num_chains=num_chains,
 )
 mcmc.print_summary()
