@@ -116,6 +116,7 @@ def _sequential_round(
     Theta_New=None,
     X=None,
     num_round=0,
+    run_mcmc=True,
 ):
     # TODO: These if statements are a bit of a mess. Should be refactored.
     if num_warmup_per_round is None:
@@ -154,25 +155,29 @@ def _sequential_round(
 
     # some mcmc stuff
 
-    init_theta = get_init_theta(
-        model_params.slow if hasattr(model_params, "slow") else model_params,
-        log_prob,
-        X_true,
-        Theta,
-        num_theta=num_chains,
-    )
+    if run_mcmc:
+        init_theta = get_init_theta(
+            model_params.slow if hasattr(model_params, "slow") else model_params,
+            log_prob,
+            X_true,
+            Theta,
+            num_theta=num_chains,
+        )
 
-    Theta_post = _sample_posterior(
-        rng,
-        model_params.slow if hasattr(model_params, "slow") else model_params,
-        log_prob,
-        log_prior,
-        X_true,
-        init_theta=init_theta,
-        num_samples=num_samples_per_round,
-        num_warmup=num_samples_per_round,
-        num_chains=num_chains,
-    )
+        Theta_post = _sample_posterior(
+            rng,
+            model_params.slow if hasattr(model_params, "slow") else model_params,
+            log_prob,
+            log_prior,
+            X_true,
+            init_theta=init_theta,
+            num_samples=num_samples_per_round,
+            num_warmup=num_samples_per_round,
+            num_chains=num_chains,
+        )
+    else:
+        Theta_post = Theta_New
+        
     return model_params, X, Theta, Theta_post
 
 
@@ -234,6 +239,7 @@ def sequential(
             Theta_New=Theta_New,
             X=X,
             num_round=i,
+            run_mcmc=(i < num_rounds - 1),
         )
 
         # DEBUGGING

@@ -27,6 +27,7 @@ def pipeline(
     ensemble_size=15,
     num_layers=2,
     hidden_dim=32,
+    num_bins=10,
     # Optimizer hyperparmeters
     max_norm=1e-3,
     learning_rate=3e-4,
@@ -108,6 +109,7 @@ def pipeline(
             "hidden_dim": hidden_dim,
             "context_dim": theta_dim,
             "n_layers": num_layers,
+            "n_bins": num_bins,
             "permutation": "Conv1x1",
             "normalization": None,
             "made_activation": "gelu",

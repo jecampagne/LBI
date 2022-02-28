@@ -1,4 +1,6 @@
 import jax
+import jax.numpy as np
+from lbi.models.flows.splines.utils import searchsorted
 
 
 
@@ -8,22 +10,23 @@ def unconstrained_linear_spline(
     inside_interval_mask = (inputs >= -tail_bound) & (inputs <= tail_bound)
     outside_interval_mask = ~inside_interval_mask
 
-    outputs = jax.numpy.zeros_like(inputs)
-    logabsdet = jax.numpy.zeros_like(inputs)
+    outputs = np.zeros_like(inputs)
+    logabsdet = np.zeros_like(inputs)
 
     if tails != "linear":
         raise RuntimeError("{} tails are not implemented.".format(tails))
 
-    # if jax.numpy.any(inside_interval_mask):
     transformed_outputs, transformed_logabsdet = linear_spline(
-        inputs=inputs, #[inside_interval_mask],
-        unnormalized_pdf=unnormalized_pdf, #[inside_interval_mask, :],
+        inputs=inputs.reshape(-1), 
+        unnormalized_pdf=unnormalized_pdf.reshape(-1, unnormalized_pdf.shape[-1]),
         inverse=inverse,
         left=-tail_bound,
         right=tail_bound,
         bottom=-tail_bound,
         top=tail_bound,
     )
+    transformed_outputs = transformed_outputs.reshape(inputs.shape)
+    transformed_logabsdet = transformed_logabsdet.reshape(inputs.shape)
 
     outputs = inputs * outside_interval_mask + transformed_outputs * inside_interval_mask
     logabsdet = 0.0 * outside_interval_mask + transformed_logabsdet * inside_interval_mask
@@ -52,18 +55,18 @@ def linear_spline(
 
     pdf = jax.nn.softmax(unnormalized_pdf, axis=-1)
 
-    cdf = jax.numpy.cumsum(pdf, axis=-1)
+    cdf = np.cumsum(pdf, axis=-1)
     pad_width = [(0, 0) for i in range(len(pdf.shape) - 1)] + [(1, 0)]
-    cdf = jax.numpy.pad(cdf, pad_width=pad_width, mode="constant", constant_values=0.0)
+    cdf = np.pad(cdf, pad_width=pad_width, mode="constant", constant_values=0.0)
 
     if inverse:
-        inv_bin_idx = jax.numpy.searchsorted(cdf, inputs, side="right")
+        inv_bin_idx = searchsorted(cdf, inputs)
 
-        bin_boundaries = jax.numpy.linspace(0.0, 1.0, num_bins + 1).reshape(
-            1 * len(inputs.shape), -1
+        bin_boundaries = np.linspace(0.0, 1.0, num_bins + 1).reshape(
+            [1] * len(inputs.shape) + [-1]
         )
-        bin_boundaries = jax.numpy.broadcast_to(
-            bin_boundaries, (*inputs.shape, num_bins)
+        bin_boundaries = np.broadcast_to(
+            bin_boundaries, (*inputs.shape, num_bins + 1)
         )
 
         slopes = (cdf[..., 1:] - cdf[..., :-1]) / (
@@ -72,28 +75,29 @@ def linear_spline(
         offsets = cdf[..., 1:] - slopes * bin_boundaries[..., 1:]
 
         inv_bin_idx = inv_bin_idx[:, None]
-        input_slopes = jax.numpy.take_along_axis(slopes, inv_bin_idx, axis=-1)[..., 0]
-        input_offsets = jax.numpy.take_along_axis(offsets, inv_bin_idx, axis=-1)[..., 0]
+        input_slopes = np.take_along_axis(slopes, inv_bin_idx, axis=-1)[..., 0]
+        input_offsets = np.take_along_axis(offsets, inv_bin_idx, axis=-1)[..., 0]
 
         outputs = (inputs - input_offsets) / input_slopes
-        outputs = jax.numpy.clip(outputs, 0, 1)
+        outputs = np.clip(outputs, 0, 1)
 
-        logabsdet = -jax.numpy.log(input_slopes)
+        logabsdet = -np.log(input_slopes)
     else:
         bin_pos = inputs * num_bins
-        bin_pos = jax.numpy.clip(bin_pos, 0, num_bins - 1)
-        bin_idx = jax.numpy.floor(bin_pos)
+        
+        bin_idx = np.floor(bin_pos)
+        bin_idx = np.clip(bin_idx, 0, num_bins - 1)
 
         alpha = bin_pos - bin_idx
 
-        input_pdfs = jax.numpy.take_along_axis(pdf, bin_idx[..., None], axis=-1)[..., 0]
+        input_pdfs = np.take_along_axis(pdf, bin_idx[..., None], axis=-1)[..., 0]
 
-        outputs = jax.numpy.take_along_axis(cdf, bin_idx[..., None], axis=-1)[..., 0]
+        outputs = np.take_along_axis(cdf, bin_idx[..., None], axis=-1)[..., 0]
         outputs += alpha * input_pdfs
-        outputs = jax.numpy.clip(outputs, 0, 1)
+        outputs = np.clip(outputs, 0, 1)
 
         bin_width = 1.0 / num_bins
-        logabsdet = jax.numpy.log(input_pdfs) - jax.numpy.log(bin_width)
+        logabsdet = np.log(input_pdfs) - np.log(bin_width)
 
     if inverse:
         outputs = outputs * (right - left) + left

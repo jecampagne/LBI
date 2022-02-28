@@ -4,7 +4,11 @@ import flax.linen as nn
 
 from lbi.models.flows import flow, priors, utils, permutations, normalizations
 import lbi.models.flows.made as made_module
-from lbi.models.flows.transforms import MaskedPiecewiseLinearAutoregressiveTransform
+from lbi.models.flows.transforms import (
+    MaskedLinearAutoregressiveTransform,
+    MaskedPiecewiseLinearAutoregressiveTransform,
+    MaskedPiecewiseRationalQuadraticAutoregressiveTransform,
+)
 
 
 def get_loss_fn(log_pdf):
@@ -27,7 +31,7 @@ def construct_MAF(
     n_layers: int = 5,
     n_bins: int = 8,
     context_embedding: nn.Module = None,
-    permutation: str = "Reverse",
+    permutation: str = "Conv1x1",
     normalization: str = None,
     made_activation: str = "celu",
     scale_X=None,
@@ -52,12 +56,12 @@ def construct_MAF(
         "act": made_activation,
     }
 
-    piecewise_linear_kwargs = {
+    piecewise_kwargs = {
         "input_dim": input_dim,
         "hidden_dim": hidden_dim,
         "context_dim": context_dim,
-        "output_dim_multiplier": n_bins,
-        "act": made_activation,
+        "num_bins": n_bins,
+        "tail_bound": 6.0,
     }
 
     permutation = getattr(permutations, permutation)
@@ -71,10 +75,14 @@ def construct_MAF(
     for rng in jax.random.split(rng, n_layers):
         permutation_kwargs["rng"] = rng
 
-        # transformations.append(made_module.MADE(**made_kwargs))
-        transformations.append(
-            MaskedPiecewiseLinearAutoregressiveTransform(**piecewise_linear_kwargs)
-        )
+        transformations.append(made_module.MADE(**made_kwargs))
+        # transformations.append(MaskedLinearAutoregressiveTransform(**piecewise_kwargs))
+        # transformations.append(
+        #     MaskedPiecewiseLinearAutoregressiveTransform(**piecewise_kwargs)
+        # )
+        # transformations.append(
+        # MaskedPiecewiseRationalQuadraticAutoregressiveTransform(**piecewise_kwargs)
+        # )
         transformations.append(permutation(**permutation_kwargs))
         if normalization is not None:
             transformations.append(normalization(**normalization_kwargs))
@@ -87,15 +95,16 @@ def construct_MAF(
         prior=priors.Normal(dim=input_dim),
     )
 
-    def log_prob_fn(params, X, Theta):
+    def log_prob_fn(params, X, Theta=None):
         # print("X shape: ", X.shape)
         # print("Theta shape: ", Theta.shape)
 
         scaled_X = scale_X(X) if scale_X is not None else X
-        scaled_Theta = scale_Theta(Theta) if scale_Theta is not None else Theta
+        if Theta is not None:
+            scaled_Theta = scale_Theta(Theta) if scale_Theta is not None else Theta
+        else:
+            scaled_Theta = None
 
-        # print("scaled_X shape: ", scaled_X.shape)
-        # print("scaled_Theta shape: ", scaled_Theta.shape)
         # the models' __call__ are their log_prob fns
         return maf.apply(params, scaled_X, scaled_Theta)
 

@@ -54,7 +54,8 @@ model, log_prob, params, Theta_post = pipeline(
     model_type="flow",  # "classifier" or "flow"
     ensemble_size=15,
     num_layers=2,
-    hidden_dim=32,
+    num_bins=3,
+    hidden_dim=128,
     # Optimizer hyperparmeters
     max_norm=1e-3,
     learning_rate=3e-4,

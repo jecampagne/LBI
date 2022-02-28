@@ -117,7 +117,7 @@ class MADE(nn.Module):
     act: str = "celu"
 
     def setup(self):
-        self.transform = MaskedTransform(
+        self.autoregressive_net = MaskedTransform(
             input_dim=self.input_dim,
             context_dim=self.context_dim,
             hidden_dim=self.hidden_dim,
@@ -128,7 +128,7 @@ class MADE(nn.Module):
 
     @compact
     def __call__(self, inputs, context=None):
-        log_weight, bias = self.transform(inputs, context=context).split(
+        log_weight, bias = self.autoregressive_net(inputs, context=context).split(
             self.output_dim_multiplier, axis=1
         )
         # print("forward", log_weight, bias)
@@ -142,7 +142,7 @@ class MADE(nn.Module):
     def inverse(self, inputs, context=None):
         outputs = np.zeros_like(inputs)
         for i_col in range(inputs.shape[1]):
-            log_weight, bias = self.transform(outputs, context=context).split(
+            log_weight, bias = self.autoregressive_net(outputs, context=context).split(
                 self.output_dim_multiplier, axis=1
             )
             # print("inverse", log_weight, bias)
