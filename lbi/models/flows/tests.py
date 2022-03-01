@@ -2,12 +2,17 @@ from functools import partial
 import jax
 import jax.numpy as np
 from lbi.models.flows import construct_MAF
+from lbi.models.flows.maf import get_loss_fn
 
 
 def check_invertibility(seed=42):
     """
     Check if flow is invertible.
     """
+    print("______________________________________________________")
+    print("_________________ Invertibility Test _________________")
+    print("______________________________________________________")
+
     input_dim = 5
     context_dim = 10
     hidden_dim = 64
@@ -25,7 +30,7 @@ def check_invertibility(seed=42):
         params = maf.init(rng, dummy_input, context=dummy_context)
         return params
 
-    maf = construct_MAF(
+    maf, log_prob, loss_fn = construct_MAF(
         rng=rng,
         input_dim=input_dim,
         context_dim=context_dim,
@@ -56,10 +61,6 @@ def check_invertibility(seed=42):
         print("Flow is not invertible")
         print("delta std:", np.std(delta))
 
-    print("______________________________________________________")
-    print("_____________ Conditonal Two  Moons Test _____________")
-    print("______________________________________________________")
-
 
 def two_moons(seed=42):
     import jax
@@ -75,6 +76,10 @@ def two_moons(seed=42):
     from tqdm.auto import tqdm
     import matplotlib.pyplot as plt
 
+    print("______________________________________________________")
+    print("_____________ Conditional Two Moons Test _____________")
+    print("______________________________________________________")
+
     rng = jax.random.PRNGKey(seed)
 
     learning_rate = 1e-3
@@ -83,7 +88,7 @@ def two_moons(seed=42):
 
     n_layers = 1
     hidden_dim = 32
-    ensemble_size = 5 
+    ensemble_size = 5
     # speed of training ensemble depends on the size of:
     # ensemble, batch, and hidden dim
 
@@ -155,7 +160,7 @@ def two_moons(seed=42):
     plt.scatter(*X_train.T, color="grey", alpha=0.01, marker=".")
 
     # This is parallel sampling bit is ugly....
-    # Technically not correct bc samples should be rejected 
+    # Technically not correct bc samples should be rejected
     # rather than split evenly. As n_samp->inf this is fine.
 
     sample_0 = functools.partial(
@@ -170,7 +175,7 @@ def two_moons(seed=42):
     )
     parallel_sample_0 = jax.vmap(sample_0, in_axes=(0, 0))
     parallel_sample_1 = jax.vmap(sample_1, in_axes=(0, 0))
-    
+
     samples_0 = parallel_sample_0(
         params,
         jax.random.split(rng, ensemble_size),
@@ -190,5 +195,5 @@ def two_moons(seed=42):
 
 
 if __name__ == "__main__":
-    # check_invertibility()
-    two_moons()
+    check_invertibility()
+    # two_moons()

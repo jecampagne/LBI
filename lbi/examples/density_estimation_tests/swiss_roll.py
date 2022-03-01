@@ -20,12 +20,12 @@ rng, model_rng, hmc_rng = jax.random.split(jax.random.PRNGKey(seed), num=3)
 logger = None
 # --------------------------
 
-def simulate(num_samples, noise=1.75):
+def simulate(num_samples, noise=0.5):
     global seed 
     X, _ = make_swiss_roll(n_samples=num_samples, noise=noise, random_state=seed)
     seed += 1
     X = np.delete(X, 1, axis=1)
-    return X/5
+    return X/5.
 
 
 # --------------------------
@@ -51,13 +51,15 @@ optimizer = optax.chain(
 maf_kwargs = {
     "rng": model_rng,
     "input_dim": 2,
-    "hidden_dim": 64,
+    "hidden_dim": 32,
     "context_dim": 0,
-    "n_layers": 2,
-    "n_bins": 5,
+    "n_layers": 3,
+    "n_bins": 4,
     "permutation": "Reverse",
     "normalization": None,
     "made_activation": "gelu",
+    "transform_type": "MaskedPiecewiseRationalQuadraticAutoregressiveTransform",
+    "tail_bound": 6.0,
 }
 
 model, log_prob, loss_fn = construct_MAF(
@@ -122,7 +124,8 @@ fig, axes = plt.subplots(1, 2, figsize=(10, 5))
 
 axes[0].scatter(*simulate(100, noise=0).T, marker='.', alpha=0.2, color='k')
 axes[0].scatter(*flow_samples.T, marker='.', alpha=0.2)
-
+axes[0].set_xlim([-4, 4])
+axes[0].set_ylim([-4, 4])
 
 grid = onp.meshgrid(onp .linspace(-4, 4), onp.linspace(-4, 4))
 grid = onp.stack(grid).T.reshape(-1, 2)

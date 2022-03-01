@@ -4,11 +4,7 @@ import flax.linen as nn
 
 from lbi.models.flows import flow, priors, utils, permutations, normalizations
 import lbi.models.flows.made as made_module
-from lbi.models.flows.transforms import (
-    MaskedLinearAutoregressiveTransform,
-    MaskedPiecewiseLinearAutoregressiveTransform,
-    MaskedPiecewiseRationalQuadraticAutoregressiveTransform,
-)
+from lbi.models.flows import transforms
 
 
 def get_loss_fn(log_pdf):
@@ -33,7 +29,9 @@ def construct_MAF(
     context_embedding: nn.Module = None,
     permutation: str = "Conv1x1",
     normalization: str = None,
-    made_activation: str = "celu",
+    transform_type: str = "MaskedLinearAutoregressiveTransform",
+    made_activation: str = "gelu",
+    tail_bound: float = 6.0,
     scale_X=None,
     scale_Theta=None,
 ):
@@ -48,20 +46,21 @@ def construct_MAF(
     if context_embedding is not None:
         context_dim = context_embedding.output_dim
 
-    made_kwargs = {
-        "input_dim": input_dim,
-        "hidden_dim": hidden_dim,
-        "context_dim": context_dim,
-        "output_dim_multiplier": 2,
-        "act": made_activation,
-    }
+    # made_kwargs = {
+    #     "input_dim": input_dim,
+    #     "hidden_dim": hidden_dim,
+    #     "context_dim": context_dim,
+    #     "output_dim_multiplier": 2,
+    #     "act": made_activation,
+    # }
 
     piecewise_kwargs = {
         "input_dim": input_dim,
         "hidden_dim": hidden_dim,
         "context_dim": context_dim,
         "num_bins": n_bins,
-        "tail_bound": 6.0,
+        "act": made_activation,
+        "tail_bound": tail_bound,
     }
 
     permutation = getattr(permutations, permutation)
@@ -74,14 +73,15 @@ def construct_MAF(
     transformations = []
     for rng in jax.random.split(rng, n_layers):
         permutation_kwargs["rng"] = rng
+        transformations.append(getattr(transforms, transform_type)(**piecewise_kwargs))
 
-        transformations.append(made_module.MADE(**made_kwargs))
+        # transformations.append(made_module.MADE(**made_kwargs))
         # transformations.append(MaskedLinearAutoregressiveTransform(**piecewise_kwargs))
         # transformations.append(
         #     MaskedPiecewiseLinearAutoregressiveTransform(**piecewise_kwargs)
         # )
         # transformations.append(
-        # MaskedPiecewiseRationalQuadraticAutoregressiveTransform(**piecewise_kwargs)
+        #     MaskedPiecewiseRationalQuadraticAutoregressiveTransform(**piecewise_kwargs)
         # )
         transformations.append(permutation(**permutation_kwargs))
         if normalization is not None:
