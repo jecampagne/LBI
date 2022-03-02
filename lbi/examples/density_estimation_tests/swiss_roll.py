@@ -58,7 +58,7 @@ maf_kwargs = {
     "permutation": "Reverse",
     "normalization": None,
     "made_activation": "gelu",
-    "transform_type": "MaskedPiecewiseRationalQuadraticAutoregressiveTransform",
+    "transform_type": "MaskedPiecewiseLinearAutoregressiveTransform",
     "tail_bound": 6.0,
 }
 

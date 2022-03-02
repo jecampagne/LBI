@@ -54,7 +54,7 @@ def construct_MAF(
     #     "act": made_activation,
     # }
 
-    piecewise_kwargs = {
+    transform_kwargs = {
         "input_dim": input_dim,
         "hidden_dim": hidden_dim,
         "context_dim": context_dim,
@@ -73,7 +73,7 @@ def construct_MAF(
     transformations = []
     for rng in jax.random.split(rng, n_layers):
         permutation_kwargs["rng"] = rng
-        transformations.append(getattr(transforms, transform_type)(**piecewise_kwargs))
+        transformations.append(getattr(transforms, transform_type)(**transform_kwargs))
 
         # transformations.append(made_module.MADE(**made_kwargs))
         # transformations.append(MaskedLinearAutoregressiveTransform(**piecewise_kwargs))

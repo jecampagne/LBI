@@ -27,6 +27,10 @@ def pipeline(
     ensemble_size=15,
     num_layers=2,
     hidden_dim=32,
+    # flow specific parameters
+    transform_type="MaskedPiecewiseRationalQuadraticAutoregressiveTransform",
+    permutation="Reverse",
+    tail_bound=10.0, 
     num_bins=10,
     # Optimizer hyperparmeters
     max_norm=1e-3,
@@ -105,12 +109,14 @@ def pipeline(
     else:
         maf_kwargs = {
             "rng": rng,
+            "transform_type": transform_type,
             "input_dim": obs_dim,
             "hidden_dim": hidden_dim,
             "context_dim": theta_dim,
             "n_layers": num_layers,
             "n_bins": num_bins,
-            "permutation": "Conv1x1",
+            "tail_bound": tail_bound,
+            "permutation": permutation,
             "normalization": None,
             "made_activation": "gelu",
         }
