@@ -65,6 +65,7 @@ def getTrainer(
                     if mean_val_loss < best_valid_loss:
                         best_valid_loss = mean_val_loss
                         best_params = params_vector  # TODO: copy just to be safe
+                        round_patience = patience
                     elif np.isnan(mean_val_loss) or np.isinf(mean_val_loss):
                         print("We've hit nan-ville in validation. Stopping early.")
                         break

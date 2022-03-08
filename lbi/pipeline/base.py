@@ -27,6 +27,8 @@ def pipeline(
     ensemble_size=15,
     num_layers=2,
     hidden_dim=32,
+    # classifier parameters
+    use_residual=False,
     # flow specific parameters
     transform_type="MaskedPiecewiseRationalQuadraticAutoregressiveTransform",
     permutation="Reverse",
