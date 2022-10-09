@@ -95,7 +95,7 @@ class MaskedTransform(nn.Module):
             getattr(nn, self.act),
             MaskedDense(
                 features=masks[2].shape[-1] * self.output_dim_multiplier,
-                mask=masks[2].tile(self.output_dim_multiplier),
+                mask=np.tile(masks[2],self.output_dim_multiplier),  #JEC
             ),
         ]
 
